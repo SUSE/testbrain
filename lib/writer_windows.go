@@ -1,6 +1,6 @@
 // +build windows
 
-package cmd
+package lib
 
 import "github.com/fatih/color"
 

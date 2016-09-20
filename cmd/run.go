@@ -15,20 +15,20 @@
 package cmd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
-
-	"github.com/spf13/cobra"
-
-	"fmt"
+	"path"
 	"strings"
 	"syscall"
 
 	"github.com/fatih/color"
 	"github.com/hpcloud/termui"
 	"github.com/hpcloud/termui/termpassword"
-	"path"
+	"github.com/spf13/cobra"
+
+	"github.com/hpcloud/test-brain/lib"
 )
 
 // The --testfolder flag
@@ -40,7 +40,7 @@ var runCmd = &cobra.Command{
 	Short: "Runs all tests",
 	Long:  `A longer description`,
 	Run: func(cmd *cobra.Command, args []string) {
-		ui := termui.New(os.Stdin, Writer, termpassword.NewReader())
+		ui := termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
 
 		// Open and read folder
 		fileList, err := ioutil.ReadDir(testFolder)
@@ -57,7 +57,7 @@ var runCmd = &cobra.Command{
 		ui.Printf("Found %d test files \n", len(testFileList))
 
 		// Run tests
-		testResults := []TestResult{}
+		testResults := []lib.TestResult{}
 		for i, testFile := range testFileList {
 			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFileList))
 			result := runSingleTest(testFile)
@@ -70,13 +70,13 @@ var runCmd = &cobra.Command{
 		}
 
 		// Show results
-		failedTestResults := []TestResult{}
+		failedTestResults := []lib.TestResult{}
 		for _, result := range testResults {
 			if !result.Success {
 				failedTestResults = append(failedTestResults, result)
 			}
 		}
-		ui.Printf("Tests complete: %d Passed, %d Failed\n", len(testResults) - len(failedTestResults), len(failedTestResults))
+		ui.Printf("Tests complete: %d Passed, %d Failed\n", len(testResults)-len(failedTestResults), len(failedTestResults))
 		for _, failedResult := range failedTestResults {
 			redBoldColor := color.New(color.FgRed, color.Bold).SprintfFunc()
 			failureName := redBoldColor("%s: Failed with code %d", failedResult.TestFile, failedResult.ExitCode)
@@ -93,7 +93,7 @@ func init() {
 	runCmd.PersistentFlags().StringVar(&testFolder, "testfolder", "tests", "Folder containing the test files to run")
 }
 
-func runSingleTest(testFile string) *TestResult {
+func runSingleTest(testFile string) *lib.TestResult {
 	command := exec.Command(path.Join(testFolder, testFile))
 	out, err := command.CombinedOutput()
 	exitCode := -1
@@ -108,11 +108,11 @@ func runSingleTest(testFile string) *TestResult {
 				exitCode = status.ExitStatus()
 			}
 		} else {
-			return ErrorTestResult(testFile, err)
+			return lib.ErrorTestResult(testFile, err)
 		}
 	}
 
-	return &TestResult{
+	return &lib.TestResult{
 		TestFile: testFile,
 		Success:  command.ProcessState.Success(),
 		ExitCode: exitCode,
