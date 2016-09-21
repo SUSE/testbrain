@@ -27,9 +27,9 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/hpcloud/termui"
-	"github.com/hpcloud/termui/termpassword"
 	"github.com/spf13/cobra"
 
+	"github.com/hpcloud/termui/termpassword"
 	"github.com/hpcloud/test-brain/lib"
 )
 
@@ -37,7 +37,8 @@ import (
 var testFolder string
 var timeout int
 
-// Creating color printers globally to simplify printing
+// Creating printers globally to simplify printing
+var ui *termui.UI
 var green = color.New(color.FgGreen)
 var red = color.New(color.FgRed)
 var redBold = color.New(color.FgRed, color.Bold)
@@ -47,57 +48,58 @@ var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Runs all tests",
 	Long:  `A longer description`,
-	Run: func(cmd *cobra.Command, args []string) {
-		ui := termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
-		// This lets us use the standard Print functions of the color library while printing to the UI
-		color.Output = ui
-
-		// Open and read folder
-		fileList, err := ioutil.ReadDir(testFolder)
-		if err != nil {
-			ui.Println(color.RedString("Could not open test folder: " + testFolder))
-			termui.PrintAndExit(ui, err)
-		}
-		testFileList := []string{}
-		for _, file := range fileList {
-			if strings.HasSuffix(file.Name(), ".sh") {
-				testFileList = append(testFileList, file.Name())
-			}
-		}
-		ui.Printf("Found %d test files \n", len(testFileList))
-
-		// Run tests
-		testResults := []lib.TestResult{}
-		for i, testFile := range testFileList {
-			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFileList))
-			result := runSingleTest(testFile)
-			testResults = append(testResults, *result)
-			if result.Success {
-				green.Println("OK")
-			} else {
-				redBold.Println("FAILED")
-			}
-		}
-
-		// Show results
-		failedTestResults := []lib.TestResult{}
-		for _, result := range testResults {
-			if !result.Success {
-				failedTestResults = append(failedTestResults, result)
-			}
-		}
-		ui.Printf("Tests complete: %d Passed, %d Failed\n", len(testResults)-len(failedTestResults), len(failedTestResults))
-		for _, failedResult := range failedTestResults {
-			redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
-			red.Printf("Output:\n%s\n", failedResult.Output)
-		}
-	},
+	Run:   runAllTests,
 }
 
 func init() {
 	RootCmd.AddCommand(runCmd)
 	runCmd.PersistentFlags().StringVar(&testFolder, "testfolder", "tests", "Folder containing the test files to run")
 	runCmd.PersistentFlags().IntVar(&timeout, "timeout", 300, "Timeout (in seconds) for each individual test")
+	ui = termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
+	// This lets us use the standard Print functions of the color library while printing to the UI
+	color.Output = ui
+}
+
+func runAllTests(cmd *cobra.Command, args []string) {
+	// Open and read folder
+	fileList, err := ioutil.ReadDir(testFolder)
+	if err != nil {
+		ui.Println(color.RedString("Could not open test folder: " + testFolder))
+		termui.PrintAndExit(ui, err)
+	}
+	testFileList := []string{}
+	for _, file := range fileList {
+		if strings.HasSuffix(file.Name(), ".sh") {
+			testFileList = append(testFileList, file.Name())
+		}
+	}
+	ui.Printf("Found %d test files \n", len(testFileList))
+
+	// Run tests
+	testResults := []lib.TestResult{}
+	for i, testFile := range testFileList {
+		ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFileList))
+		result := runSingleTest(testFile)
+		testResults = append(testResults, *result)
+		if result.Success {
+			green.Println("OK")
+		} else {
+			redBold.Println("FAILED")
+		}
+	}
+
+	// Show results
+	failedTestResults := []lib.TestResult{}
+	for _, result := range testResults {
+		if !result.Success {
+			failedTestResults = append(failedTestResults, result)
+		}
+	}
+	ui.Printf("Tests complete: %d Passed, %d Failed\n", len(testResults)-len(failedTestResults), len(failedTestResults))
+	for _, failedResult := range failedTestResults {
+		redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
+		red.Printf("Output:\n%s\n", failedResult.Output)
+	}
 }
 
 func runSingleTest(testFile string) *lib.TestResult {
