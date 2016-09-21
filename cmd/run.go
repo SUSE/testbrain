@@ -37,6 +37,11 @@ import (
 var testFolder string
 var timeout int
 
+// Creating color printers globally to simplify printing
+var green = color.New(color.FgGreen)
+var red = color.New(color.FgRed)
+var redBold = color.New(color.FgRed, color.Bold)
+
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -44,6 +49,8 @@ var runCmd = &cobra.Command{
 	Long:  `A longer description`,
 	Run: func(cmd *cobra.Command, args []string) {
 		ui := termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
+		// This lets us use the standard Print functions of the color library while printing to the UI
+		color.Output = ui
 
 		// Open and read folder
 		fileList, err := ioutil.ReadDir(testFolder)
@@ -66,9 +73,9 @@ var runCmd = &cobra.Command{
 			result := runSingleTest(testFile)
 			testResults = append(testResults, *result)
 			if result.Success {
-				ui.Println(color.GreenString("OK"))
+				green.Println("OK")
 			} else {
-				ui.Println(color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED"))
+				redBold.Println("FAILED")
 			}
 		}
 
@@ -81,12 +88,8 @@ var runCmd = &cobra.Command{
 		}
 		ui.Printf("Tests complete: %d Passed, %d Failed\n", len(testResults)-len(failedTestResults), len(failedTestResults))
 		for _, failedResult := range failedTestResults {
-			redBoldColor := color.New(color.FgRed, color.Bold).SprintfFunc()
-			failureName := redBoldColor("%s: Failed with code %d", failedResult.TestFile, failedResult.ExitCode)
-			ui.Println(failureName)
-			failureString := fmt.Sprintf("Output:\n%s", failedResult.Output)
-			failureString = color.RedString(failureString)
-			ui.Println(failureString)
+			redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
+			red.Printf("Output:\n%s\n", failedResult.Output)
 		}
 	},
 }
