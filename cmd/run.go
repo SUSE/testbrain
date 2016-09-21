@@ -16,6 +16,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -34,6 +35,7 @@ import (
 )
 
 // Flags from the command line are set in these variables
+var jsonOutput bool
 var testFolder string
 var timeout int
 var verbose bool
@@ -55,6 +57,7 @@ var runCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(runCmd)
+	runCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
 	runCmd.PersistentFlags().StringVar(&testFolder, "testfolder", "tests", "Folder containing the test files to run")
 	runCmd.PersistentFlags().IntVar(&timeout, "timeout", 300, "Timeout (in seconds) for each individual test")
 	runCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Output the progress of running tests")
@@ -76,17 +79,19 @@ func runAllTests(cmd *cobra.Command, args []string) {
 			testFileList = append(testFileList, file.Name())
 		}
 	}
-	ui.Printf("Found %d test files \n", len(testFileList))
+	if !jsonOutput {
+		ui.Printf("Found %d test files \n", len(testFileList))
+	}
 
 	// Run tests
 	testResults := []lib.TestResult{}
 	for i, testFile := range testFileList {
-		if verbose {
+		if verbose && !jsonOutput {
 			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFileList))
 		}
 		result := runSingleTest(testFile)
 		testResults = append(testResults, *result)
-		if verbose {
+		if verbose && !jsonOutput {
 			if result.Success {
 				green.Println("OK")
 			} else {
@@ -102,15 +107,30 @@ func runAllTests(cmd *cobra.Command, args []string) {
 			failedTestResults = append(failedTestResults, result)
 		}
 	}
-	for _, failedResult := range failedTestResults {
-		redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
-		red.Printf("Output:\n%s\n", failedResult.Output)
-	}
-	summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", len(testResults)-len(failedTestResults), len(failedTestResults))
-	if len(failedTestResults) > 0 {
-		redBold.Println(summaryString)
+	if jsonOutput {
+		// This is the only place where we need this struct, so anonymous struct seems appropriate
+		jsonOutputStruct := struct {
+			Passed     int              `json:"passed"`
+			Failed     int              `json:"failed"`
+			FailedList []lib.TestResult `json:"failedList,omitempty"`
+		}{
+			Passed:     len(testResults) - len(failedTestResults),
+			Failed:     len(failedTestResults),
+			FailedList: failedTestResults,
+		}
+		jsonOutput, _ := json.Marshal(jsonOutputStruct)
+		ui.Println(string(jsonOutput))
 	} else {
-		greenBold.Println(summaryString)
+		for _, failedResult := range failedTestResults {
+			redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
+			red.Printf("Output:\n%s\n", failedResult.Output)
+		}
+		summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", len(testResults)-len(failedTestResults), len(failedTestResults))
+		if len(failedTestResults) > 0 {
+			redBold.Println(summaryString)
+		} else {
+			greenBold.Println(summaryString)
+		}
 	}
 }
 
