@@ -68,26 +68,16 @@ func init() {
 
 func runAllTests(cmd *cobra.Command, args []string) {
 	// Open and read folder
-	fileList, err := ioutil.ReadDir(testFolder)
-	if err != nil {
-		ui.Println(color.RedString("Could not open test folder: " + testFolder))
-		termui.PrintAndExit(ui, err)
-	}
-	testFileList := []string{}
-	for _, file := range fileList {
-		if strings.HasSuffix(file.Name(), ".sh") {
-			testFileList = append(testFileList, file.Name())
-		}
-	}
+	testFiles := getTestScripts(testFolder)
 	if !jsonOutput {
-		ui.Printf("Found %d test files \n", len(testFileList))
+		ui.Printf("Found %d test files \n", len(testFiles))
 	}
 
 	// Run tests
 	testResults := []lib.TestResult{}
-	for i, testFile := range testFileList {
+	for i, testFile := range testFiles {
 		if verbose && !jsonOutput {
-			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFileList))
+			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
 		result := runSingleTest(testFile)
 		testResults = append(testResults, *result)
@@ -108,30 +98,25 @@ func runAllTests(cmd *cobra.Command, args []string) {
 		}
 	}
 	if jsonOutput {
-		// This is the only place where we need this struct, so anonymous struct seems appropriate
-		jsonOutputStruct := struct {
-			Passed     int              `json:"passed"`
-			Failed     int              `json:"failed"`
-			FailedList []lib.TestResult `json:"failedList,omitempty"`
-		}{
-			Passed:     len(testResults) - len(failedTestResults),
-			Failed:     len(failedTestResults),
-			FailedList: failedTestResults,
-		}
-		jsonOutput, _ := json.Marshal(jsonOutputStruct)
-		ui.Println(string(jsonOutput))
+		outputResultsJson(failedTestResults, len(testResults))
 	} else {
-		for _, failedResult := range failedTestResults {
-			redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
-			red.Printf("Output:\n%s\n", failedResult.Output)
-		}
-		summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", len(testResults)-len(failedTestResults), len(failedTestResults))
-		if len(failedTestResults) > 0 {
-			redBold.Println(summaryString)
-		} else {
-			greenBold.Println(summaryString)
+		outputResults(failedTestResults, len(testResults))
+	}
+}
+
+func getTestScripts(testFolder string) []string {
+	fileList, err := ioutil.ReadDir(testFolder)
+	if err != nil {
+		ui.Println(color.RedString("Could not open test folder: " + testFolder))
+		termui.PrintAndExit(ui, err)
+	}
+	testFileList := []string{}
+	for _, file := range fileList {
+		if strings.HasSuffix(file.Name(), ".sh") {
+			testFileList = append(testFileList, file.Name())
 		}
 	}
+	return testFileList
 }
 
 func runSingleTest(testFile string) *lib.TestResult {
@@ -171,4 +156,32 @@ func runSingleTest(testFile string) *lib.TestResult {
 		ExitCode: exitCode,
 		Output:   string(commandOutput.Bytes()),
 	}
+}
+
+func outputResults(failedTestResults []lib.TestResult, nbTestsRan int) {
+	for _, failedResult := range failedTestResults {
+		redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
+		red.Printf("Output:\n%s\n", failedResult.Output)
+	}
+	summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", nbTestsRan-len(failedTestResults), len(failedTestResults))
+	if len(failedTestResults) > 0 {
+		redBold.Println(summaryString)
+	} else {
+		greenBold.Println(summaryString)
+	}
+}
+
+func outputResultsJson(failedTestResults []lib.TestResult, nbTestsRan int) {
+	// This is the only place where we need this struct, so anonymous struct seems appropriate
+	jsonOutputStruct := struct {
+		Passed     int              `json:"passed"`
+		Failed     int              `json:"failed"`
+		FailedList []lib.TestResult `json:"failedList,omitempty"`
+	}{
+		Passed:     nbTestsRan - len(failedTestResults),
+		Failed:     len(failedTestResults),
+		FailedList: failedTestResults,
+	}
+	jsonOutput, _ := json.Marshal(jsonOutputStruct)
+	ui.Println(string(jsonOutput))
 }
