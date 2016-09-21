@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"path"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/hpcloud/termui"
@@ -31,8 +33,9 @@ import (
 	"github.com/hpcloud/test-brain/lib"
 )
 
-// The --testfolder flag
+// Flags from the command line are set in these variables
 var testFolder string
+var timeout int
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
@@ -91,19 +94,32 @@ var runCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(runCmd)
 	runCmd.PersistentFlags().StringVar(&testFolder, "testfolder", "tests", "Folder containing the test files to run")
+	runCmd.PersistentFlags().IntVar(&timeout, "timeout", 300, "Timeout (in seconds) for each individual test")
 }
 
 func runSingleTest(testFile string) *lib.TestResult {
 	command := exec.Command(path.Join(testFolder, testFile))
-	out, err := command.CombinedOutput()
+	var commandOutput bytes.Buffer
+	command.Stdout = &commandOutput
+	command.Stderr = &commandOutput
+	err := command.Start()
+	if err != nil {
+		return lib.ErrorTestResult(testFile, err)
+	}
+	timer := time.AfterFunc(time.Duration(timeout)*time.Second, func() {
+		command.Process.Kill()
+		commandOutput.WriteString(fmt.Sprintf("Timed out after %d seconds", timeout))
+	})
+	err = command.Wait()
+	timer.Stop()
 	exitCode := -1
 	if err != nil {
-		exiterr, ok := err.(*exec.ExitError)
+		exitErr, ok := err.(*exec.ExitError)
 		if ok {
 			// The program has exited with an ExitError, we can get the error code from WaitStatus
 			// See https://golang.org/pkg/os/#ProcessState.Sys
 			// Although the docs mention syscall.WaitStatus works on Unix, it seems to work on Windows too
-			status, ok := exiterr.Sys().(syscall.WaitStatus)
+			status, ok := exitErr.Sys().(syscall.WaitStatus)
 			if ok {
 				exitCode = status.ExitStatus()
 			}
@@ -116,6 +132,6 @@ func runSingleTest(testFile string) *lib.TestResult {
 		TestFile: testFile,
 		Success:  command.ProcessState.Success(),
 		ExitCode: exitCode,
-		Output:   string(out),
+		Output:   string(commandOutput.Bytes()),
 	}
 }
