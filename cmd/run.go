@@ -36,10 +36,12 @@ import (
 // Flags from the command line are set in these variables
 var testFolder string
 var timeout int
+var verbose bool
 
 // Creating printers globally to simplify printing
 var ui *termui.UI
 var green = color.New(color.FgGreen)
+var greenBold = color.New(color.FgGreen)
 var red = color.New(color.FgRed)
 var redBold = color.New(color.FgRed, color.Bold)
 
@@ -55,6 +57,7 @@ func init() {
 	RootCmd.AddCommand(runCmd)
 	runCmd.PersistentFlags().StringVar(&testFolder, "testfolder", "tests", "Folder containing the test files to run")
 	runCmd.PersistentFlags().IntVar(&timeout, "timeout", 300, "Timeout (in seconds) for each individual test")
+	runCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Output the progress of running tests")
 	ui = termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
 	// This lets us use the standard Print functions of the color library while printing to the UI
 	color.Output = ui
@@ -78,13 +81,17 @@ func runAllTests(cmd *cobra.Command, args []string) {
 	// Run tests
 	testResults := []lib.TestResult{}
 	for i, testFile := range testFileList {
-		ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFileList))
+		if verbose {
+			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFileList))
+		}
 		result := runSingleTest(testFile)
 		testResults = append(testResults, *result)
-		if result.Success {
-			green.Println("OK")
-		} else {
-			redBold.Println("FAILED")
+		if verbose {
+			if result.Success {
+				green.Println("OK")
+			} else {
+				redBold.Println("FAILED")
+			}
 		}
 	}
 
@@ -95,10 +102,15 @@ func runAllTests(cmd *cobra.Command, args []string) {
 			failedTestResults = append(failedTestResults, result)
 		}
 	}
-	ui.Printf("Tests complete: %d Passed, %d Failed\n", len(testResults)-len(failedTestResults), len(failedTestResults))
 	for _, failedResult := range failedTestResults {
 		redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
 		red.Printf("Output:\n%s\n", failedResult.Output)
+	}
+	summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", len(testResults)-len(failedTestResults), len(failedTestResults))
+	if len(failedTestResults) > 0 {
+		redBold.Println(summaryString)
+	} else {
+		greenBold.Println(summaryString)
 	}
 }
 
