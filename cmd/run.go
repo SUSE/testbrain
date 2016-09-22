@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"path"
 	"strings"
@@ -30,7 +29,6 @@ import (
 	"github.com/hpcloud/termui"
 	"github.com/spf13/cobra"
 
-	"github.com/hpcloud/termui/termpassword"
 	"github.com/hpcloud/test-brain/lib"
 )
 
@@ -39,13 +37,6 @@ var jsonOutput bool
 var testFolder string
 var timeout int
 var verbose bool
-
-// Creating printers globally to simplify printing
-var ui *termui.UI
-var green = color.New(color.FgGreen)
-var greenBold = color.New(color.FgGreen)
-var red = color.New(color.FgRed)
-var redBold = color.New(color.FgRed, color.Bold)
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
@@ -61,9 +52,6 @@ func init() {
 	runCmd.PersistentFlags().StringVar(&testFolder, "testfolder", "tests", "Folder containing the test files to run")
 	runCmd.PersistentFlags().IntVar(&timeout, "timeout", 300, "Timeout (in seconds) for each individual test")
 	runCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Output the progress of running tests")
-	ui = termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
-	// This lets us use the standard Print functions of the color library while printing to the UI
-	color.Output = ui
 }
 
 func runAllTests(cmd *cobra.Command, args []string) {
@@ -74,13 +62,13 @@ func runAllTests(cmd *cobra.Command, args []string) {
 	}
 
 	// Run tests
-	testResults := []lib.TestResult{}
+	testResults := []*lib.TestResult{}
 	for i, testFile := range testFiles {
 		if verbose && !jsonOutput {
 			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
-		result := runSingleTest(testFile)
-		testResults = append(testResults, *result)
+		result := runSingleTest(testFile, testFolder)
+		testResults = append(testResults, result)
 		if verbose && !jsonOutput {
 			if result.Success {
 				green.Println("OK")
@@ -91,7 +79,7 @@ func runAllTests(cmd *cobra.Command, args []string) {
 	}
 
 	// Show results
-	failedTestResults := []lib.TestResult{}
+	failedTestResults := []*lib.TestResult{}
 	for _, result := range testResults {
 		if !result.Success {
 			failedTestResults = append(failedTestResults, result)
@@ -119,7 +107,7 @@ func getTestScripts(testFolder string) []string {
 	return testFileList
 }
 
-func runSingleTest(testFile string) *lib.TestResult {
+func runSingleTest(testFile string, testFolder string) *lib.TestResult {
 	command := exec.Command(path.Join(testFolder, testFile))
 	var commandOutput bytes.Buffer
 	command.Stdout = &commandOutput
@@ -148,6 +136,9 @@ func runSingleTest(testFile string) *lib.TestResult {
 		} else {
 			return lib.ErrorTestResult(testFile, err)
 		}
+	} else if command.ProcessState.Success() {
+		// Not exactly necessary, but more correct than saying status code is -1
+		exitCode = 0
 	}
 
 	return &lib.TestResult{
@@ -158,7 +149,7 @@ func runSingleTest(testFile string) *lib.TestResult {
 	}
 }
 
-func outputResults(failedTestResults []lib.TestResult, nbTestsRan int) {
+func outputResults(failedTestResults []*lib.TestResult, nbTestsRan int) {
 	for _, failedResult := range failedTestResults {
 		redBold.Printf("%s: Failed with code %d\n", failedResult.TestFile, failedResult.ExitCode)
 		red.Printf("Output:\n%s\n", failedResult.Output)
@@ -171,17 +162,17 @@ func outputResults(failedTestResults []lib.TestResult, nbTestsRan int) {
 	}
 }
 
-func outputResultsJson(failedTestResults []lib.TestResult, nbTestsRan int) {
+func outputResultsJson(failedTestResults []*lib.TestResult, nbTestsRan int) {
 	// This is the only place where we need this struct, so anonymous struct seems appropriate
 	jsonOutputStruct := struct {
-		Passed     int              `json:"passed"`
-		Failed     int              `json:"failed"`
-		FailedList []lib.TestResult `json:"failedList,omitempty"`
+		Passed     int               `json:"passed"`
+		Failed     int               `json:"failed"`
+		FailedList []*lib.TestResult `json:"failedList,omitempty"`
 	}{
 		Passed:     nbTestsRan - len(failedTestResults),
 		Failed:     len(failedTestResults),
 		FailedList: failedTestResults,
 	}
 	jsonOutput, _ := json.Marshal(jsonOutputStruct)
-	ui.Println(string(jsonOutput))
+	ui.Print(string(jsonOutput))
 }
