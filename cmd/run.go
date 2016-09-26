@@ -42,8 +42,9 @@ var verbose bool
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Runs all tests",
-	Long:  `A longer description`,
-	Run:   runAllTests,
+	Long: `Runs all bash tests in the designated test folder,
+gathering results and outputs and summarizing it.`,
+	Run: runAllTests,
 }
 
 func init() {
