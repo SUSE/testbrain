@@ -29,7 +29,7 @@ import (
 	"github.com/hpcloud/termui"
 	"github.com/spf13/cobra"
 
-	"github.com/hpcloud/test-brain/lib"
+	"github.com/hpcloud/testbrain/lib"
 )
 
 // Flags from the command line are set in these variables
@@ -86,7 +86,7 @@ func runAllTests(cmd *cobra.Command, args []string) {
 		}
 	}
 	if jsonOutput {
-		outputResultsJson(failedTestResults, len(testResults))
+		outputResultsJSON(failedTestResults, len(testResults))
 	} else {
 		outputResults(failedTestResults, len(testResults))
 	}
@@ -162,7 +162,7 @@ func outputResults(failedTestResults []*lib.TestResult, nbTestsRan int) {
 	}
 }
 
-func outputResultsJson(failedTestResults []*lib.TestResult, nbTestsRan int) {
+func outputResultsJSON(failedTestResults []*lib.TestResult, nbTestsRan int) {
 	// This is the only place where we need this struct, so anonymous struct seems appropriate
 	jsonOutputStruct := struct {
 		Passed     int               `json:"passed"`

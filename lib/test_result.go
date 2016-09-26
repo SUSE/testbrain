@@ -1,5 +1,6 @@
 package lib
 
+// TestResult contains the result of a single test script
 type TestResult struct {
 	TestFile string `json:"filename"`
 	Success  bool   `json:"success"`
@@ -7,7 +8,7 @@ type TestResult struct {
 	Output   string `json:"output,omitempty"`
 }
 
-// Returns a TestResult for tests that failed with an error (bash syntax error, etc.)
+// ErrorTestResult returns a TestResult for tests that failed with an error (bash syntax error, etc.)
 func ErrorTestResult(testFile string, err error) *TestResult {
 	return &TestResult{
 		TestFile: testFile,

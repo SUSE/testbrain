@@ -7,9 +7,10 @@ import (
 	"github.com/fatih/color"
 	"github.com/hpcloud/termui"
 	"github.com/hpcloud/termui/termpassword"
-	"github.com/hpcloud/test-brain/lib"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"github.com/hpcloud/testbrain/lib"
 )
 
 var cfgFile string

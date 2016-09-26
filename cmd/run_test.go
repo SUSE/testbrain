@@ -9,10 +9,11 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/hpcloud/termui"
-	"github.com/hpcloud/test-brain/lib"
+
+	"github.com/hpcloud/testbrain/lib"
 )
 
-func setupTestUi() (*bytes.Buffer, *bytes.Buffer) {
+func setupTestUI() (*bytes.Buffer, *bytes.Buffer) {
 	in, out := &bytes.Buffer{}, &bytes.Buffer{}
 	ui = termui.New(in, out, nil)
 	color.Output = ui
@@ -73,7 +74,7 @@ func TestRunSingleTestFailure(t *testing.T) {
 }
 
 func TestOutputResults(t *testing.T) {
-	_, out := setupTestUi()
+	_, out := setupTestUI()
 	failedTestResults := setupFailedTestResults()
 	outputResults(failedTestResults, 5)
 	expected := "\x1b[31;1mtestfile1: Failed with code 1\n\x1b[0m\x1b[31mOutput:\nIt didn't work!\n\x1b[0m\x1b[31;1mtestfile2: Failed with code 2\n\x1b[0m\x1b[31mOutput:\nIt didn't work again!\n\x1b[0m\x1b[31;1m\nTests complete: 3 Passed, 2 Failed\n\x1b[0m"
@@ -82,11 +83,11 @@ func TestOutputResults(t *testing.T) {
 	}
 }
 
-func TestOutputResultsJson(t *testing.T) {
-	_, out := setupTestUi()
+func TestOutputResultsJSON(t *testing.T) {
+	_, out := setupTestUI()
 	fmt.Println("ui.PasswordReader:", ui.PasswordReader == nil)
 	failedTestResults := setupFailedTestResults()
-	outputResultsJson(failedTestResults, 5)
+	outputResultsJSON(failedTestResults, 5)
 	expected := `{"passed":3,"failed":2,"failedList":[{"filename":"testfile1","success":false,"exitcode":1,"output":"It didn't work!"},{"filename":"testfile2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
