@@ -45,7 +45,6 @@ func init() {
 	// will be global for your application.
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.test-brain.yaml)")
-	//ui = termui.New(os.Stdin, lib.Writer, nil)
 	ui = termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
 	// This lets us use the standard Print functions of the color library while printing to the UI
 	color.Output = ui
