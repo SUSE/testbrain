@@ -24,7 +24,7 @@ var redBold = color.New(color.FgRed, color.Bold)
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "test-brain",
+	Use:   "testbrain",
 	Short: "Acceptance tests brain for HCF",
 }
 

@@ -8,12 +8,15 @@ type TestResult struct {
 	Output   string `json:"output,omitempty"`
 }
 
+// UnknownExitCode represents an unknown exit code
+const UnknownExitCode = -1
+
 // ErrorTestResult returns a TestResult for tests that failed with an error (bash syntax error, etc.)
 func ErrorTestResult(testFile string, err error) *TestResult {
 	return &TestResult{
 		TestFile: testFile,
 		Success:  false,
-		ExitCode: -1,
+		ExitCode: UnknownExitCode,
 		Output:   err.Error(),
 	}
 }

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"fmt"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -77,7 +76,7 @@ func TestOutputResults(t *testing.T) {
 	_, out := setupTestUI()
 	failedTestResults := setupFailedTestResults()
 	outputResults(failedTestResults, 5)
-	expected := "\x1b[31;1mtestfile1: Failed with code 1\n\x1b[0m\x1b[31mOutput:\nIt didn't work!\n\x1b[0m\x1b[31;1mtestfile2: Failed with code 2\n\x1b[0m\x1b[31mOutput:\nIt didn't work again!\n\x1b[0m\x1b[31;1m\nTests complete: 3 Passed, 2 Failed\n\x1b[0m"
+	expected := "\x1b[31;1mtestfile1: Failed with exit code 1\n\x1b[0m\x1b[31mOutput:\nIt didn't work!\n\x1b[0m\x1b[31;1mtestfile2: Failed with exit code 2\n\x1b[0m\x1b[31mOutput:\nIt didn't work again!\n\x1b[0m\x1b[31;1m\nTests complete: 3 Passed, 2 Failed\n\x1b[0m"
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
 	}
@@ -85,7 +84,6 @@ func TestOutputResults(t *testing.T) {
 
 func TestOutputResultsJSON(t *testing.T) {
 	_, out := setupTestUI()
-	fmt.Println("ui.PasswordReader:", ui.PasswordReader == nil)
 	failedTestResults := setupFailedTestResults()
 	outputResultsJSON(failedTestResults, 5)
 	expected := `{"passed":3,"failed":2,"failedList":[{"filename":"testfile1","success":false,"exitcode":1,"output":"It didn't work!"},{"filename":"testfile2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
