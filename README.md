@@ -7,8 +7,10 @@ Currently, only one command is available:
 ### `testbrain run`
 Runs all tests in the test folder.
 
-Flags:  
-`-v`: Output the progress of running tests  
-`--testfolder`: Folder containing the test files to run  
-`--timeout`: Timeout in seconds for each individual test (defaults to 5 minutes)  
-`--json`: Output in JSON format  
+Flags:
+```
+      --json                Output in JSON format
+      --testfolder string   Folder containing the test files to run (default "tests")
+      --timeout int         Timeout (in seconds) for each individual test (default 300)
+  -v, --verbose             Output the progress of running tests
+```
