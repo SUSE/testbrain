@@ -13,11 +13,12 @@ import (
 
 	"github.com/hpcloud/termui"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/hpcloud/testbrain/lib"
 )
 
-// Flags from the command line are set in these variables
+// Flags from the command line are set in these variables during setupConfigVars()
 var (
 	jsonOutput bool
 	testFolder string
@@ -36,14 +37,17 @@ gathering results and outputs and summarizing it.`,
 
 func init() {
 	RootCmd.AddCommand(runCmd)
-	runCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
-	runCmd.PersistentFlags().StringVar(&testFolder, "testfolder", "tests", "Folder containing the test files to run")
-	runCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Output the progress of running tests")
-	timeoutInSeconds := runCmd.PersistentFlags().Int("timeout", 300, "Timeout (in seconds) for each individual test")
-	timeout = time.Duration(*timeoutInSeconds) * time.Second
+	runCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
+	runCmd.PersistentFlags().String("testfolder", "tests", "Folder containing the test files to run")
+	runCmd.PersistentFlags().BoolP("verbose", "v", false, "Output the progress of running tests")
+	runCmd.PersistentFlags().Int("timeout", 300, "Timeout (in seconds) for each individual test")
+
+	viper.BindPFlags(runCmd.PersistentFlags())
 }
 
 func runCommand(cmd *cobra.Command, args []string) {
+	setupConfigVars()
+
 	testFiles := getTestScripts(testFolder)
 	if !jsonOutput {
 		ui.Printf("Found %d test files\n", len(testFiles))
@@ -57,6 +61,14 @@ func runCommand(cmd *cobra.Command, args []string) {
 	} else {
 		outputResults(failedTestResults, len(testResults))
 	}
+}
+
+func setupConfigVars() {
+	jsonOutput = viper.GetBool("jsonOutput")
+	testFolder = viper.GetString("testFolder")
+	verbose = viper.GetBool("verbose")
+	timeoutInSeconds := viper.GetInt("timeout")
+	timeout = time.Duration(timeoutInSeconds) * time.Second
 }
 
 func getTestScripts(testFolder string) []string {
