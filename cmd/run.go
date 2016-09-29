@@ -43,11 +43,18 @@ func init() {
 	runCmd.PersistentFlags().Int("timeout", 300, "Timeout (in seconds) for each individual test")
 
 	viper.BindPFlags(runCmd.PersistentFlags())
+	setupConfigVars()
+}
+
+func setupConfigVars() {
+	jsonOutput = viper.GetBool("jsonOutput")
+	testFolder = viper.GetString("testFolder")
+	verbose = viper.GetBool("verbose")
+	timeoutInSeconds := viper.GetInt("timeout")
+	timeout = time.Duration(timeoutInSeconds) * time.Second
 }
 
 func runCommand(cmd *cobra.Command, args []string) {
-	setupConfigVars()
-
 	testFiles := getTestScripts(testFolder)
 	if !jsonOutput {
 		ui.Printf("Found %d test files\n", len(testFiles))
@@ -61,14 +68,6 @@ func runCommand(cmd *cobra.Command, args []string) {
 	} else {
 		outputResults(failedTestResults, len(testResults))
 	}
-}
-
-func setupConfigVars() {
-	jsonOutput = viper.GetBool("jsonOutput")
-	testFolder = viper.GetString("testFolder")
-	verbose = viper.GetBool("verbose")
-	timeoutInSeconds := viper.GetInt("timeout")
-	timeout = time.Duration(timeoutInSeconds) * time.Second
 }
 
 func getTestScripts(testFolder string) []string {
