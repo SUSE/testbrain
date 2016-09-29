@@ -19,24 +19,24 @@ func setupTestUI() (*bytes.Buffer, *bytes.Buffer) {
 	return in, out
 }
 
-func setupFailedTestResults() []*lib.TestResult {
-	failedTestResult1 := &lib.TestResult{
+func setupFailedTestResults() []lib.TestResult {
+	failedTestResult1 := lib.TestResult{
 		TestFile: "testfile1",
 		Success:  false,
 		ExitCode: 1,
 		Output:   "It didn't work!",
 	}
-	failedTestResult2 := &lib.TestResult{
+	failedTestResult2 := lib.TestResult{
 		TestFile: "testfile2",
 		Success:  false,
 		ExitCode: 2,
 		Output:   "It didn't work again!",
 	}
-	return []*lib.TestResult{failedTestResult1, failedTestResult2}
+	return []lib.TestResult{failedTestResult1, failedTestResult2}
 }
 
 func TestGetTestScripts(t *testing.T) {
-	testFolder, _ := filepath.Abs("../testresources/testfolder1")
+	testFolder, _ := filepath.Abs("../testdata/testfolder1")
 	testScripts := getTestScripts(testFolder)
 	expected := []string{"000_script.sh", "001_script.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
@@ -45,9 +45,9 @@ func TestGetTestScripts(t *testing.T) {
 }
 
 func TestRunSingleTestSuccess(t *testing.T) {
-	testFolder, _ := filepath.Abs("../testresources")
+	testFolder, _ := filepath.Abs("../testdata")
 	testResult := runSingleTest("hello_world.sh", testFolder)
-	expected := &lib.TestResult{
+	expected := lib.TestResult{
 		TestFile: "hello_world.sh",
 		Success:  true,
 		ExitCode: 0,
@@ -59,9 +59,9 @@ func TestRunSingleTestSuccess(t *testing.T) {
 }
 
 func TestRunSingleTestFailure(t *testing.T) {
-	testFolder, _ := filepath.Abs("../testresources")
+	testFolder, _ := filepath.Abs("../testdata")
 	testResult := runSingleTest("failure_test.sh", testFolder)
-	expected := &lib.TestResult{
+	expected := lib.TestResult{
 		TestFile: "failure_test.sh",
 		Success:  false,
 		ExitCode: 42,

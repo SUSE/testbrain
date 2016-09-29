@@ -5,15 +5,15 @@ type TestResult struct {
 	TestFile string `json:"filename"`
 	Success  bool   `json:"success"`
 	ExitCode int    `json:"exitcode"`
-	Output   string `json:"output,omitempty"`
+	Output   string `json:"output"`
 }
 
 // UnknownExitCode represents an unknown exit code
 const UnknownExitCode = -1
 
 // ErrorTestResult returns a TestResult for tests that failed with an error (bash syntax error, etc.)
-func ErrorTestResult(testFile string, err error) *TestResult {
-	return &TestResult{
+func ErrorTestResult(testFile string, err error) TestResult {
+	return TestResult{
 		TestFile: testFile,
 		Success:  false,
 		ExitCode: UnknownExitCode,

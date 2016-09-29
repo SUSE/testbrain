@@ -1,17 +1,3 @@
-// Copyright © 2016 NAME HERE <EMAIL ADDRESS>
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//     http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package cmd
 
 import (
@@ -25,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/hpcloud/termui"
 	"github.com/spf13/cobra"
 
@@ -33,10 +18,12 @@ import (
 )
 
 // Flags from the command line are set in these variables
-var jsonOutput bool
-var testFolder string
-var timeout time.Duration
-var verbose bool
+var (
+	jsonOutput bool
+	testFolder string
+	timeout    time.Duration
+	verbose    bool
+)
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
@@ -59,7 +46,7 @@ func init() {
 func runCommand(cmd *cobra.Command, args []string) {
 	testFiles := getTestScripts(testFolder)
 	if !jsonOutput {
-		ui.Printf("Found %d test files \n", len(testFiles))
+		ui.Printf("Found %d test files\n", len(testFiles))
 	}
 
 	testResults := runAllTests(testFiles)
@@ -75,10 +62,10 @@ func runCommand(cmd *cobra.Command, args []string) {
 func getTestScripts(testFolder string) []string {
 	fileList, err := ioutil.ReadDir(testFolder)
 	if err != nil {
-		ui.Println(color.RedString("Could not open test folder: " + testFolder))
+		redBold.Println("Could not open test folder: " + testFolder)
 		termui.PrintAndExit(ui, err)
 	}
-	testFileList := []string{}
+	var testFileList []string
 	for _, file := range fileList {
 		if strings.HasSuffix(file.Name(), ".sh") {
 			testFileList = append(testFileList, file.Name())
@@ -87,8 +74,8 @@ func getTestScripts(testFolder string) []string {
 	return testFileList
 }
 
-func runAllTests(testFiles []string) []*lib.TestResult {
-	testResults := []*lib.TestResult{}
+func runAllTests(testFiles []string) []lib.TestResult {
+	var testResults []lib.TestResult
 	for i, testFile := range testFiles {
 		if verbose && !jsonOutput {
 			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
@@ -100,11 +87,11 @@ func runAllTests(testFiles []string) []*lib.TestResult {
 	return testResults
 }
 
-func runSingleTest(testFile string, testFolder string) *lib.TestResult {
+func runSingleTest(testFile string, testFolder string) lib.TestResult {
 	command := exec.Command(path.Join(testFolder, testFile))
-	var commandOutput bytes.Buffer
-	command.Stdout = &commandOutput
-	command.Stderr = &commandOutput
+	commandOutput := &bytes.Buffer{}
+	command.Stdout = commandOutput
+	command.Stderr = commandOutput
 	err := command.Start()
 	if err != nil {
 		return lib.ErrorTestResult(testFile, err)
@@ -121,7 +108,7 @@ func runSingleTest(testFile string, testFolder string) *lib.TestResult {
 		return lib.ErrorTestResult(testFile, err)
 	}
 
-	return &lib.TestResult{
+	return lib.TestResult{
 		TestFile: testFile,
 		Success:  command.ProcessState.Success(),
 		ExitCode: exitCode,
@@ -156,7 +143,7 @@ func getErrorCode(err error, command *exec.Cmd) (int, error) {
 	return lib.UnknownExitCode, nil
 }
 
-func printVerboseSingleTestResult(result *lib.TestResult) {
+func printVerboseSingleTestResult(result lib.TestResult) {
 	if verbose && !jsonOutput {
 		if result.Success {
 			green.Println("OK")
@@ -166,8 +153,8 @@ func printVerboseSingleTestResult(result *lib.TestResult) {
 	}
 }
 
-func getFailedTestResults(testResults []*lib.TestResult) []*lib.TestResult {
-	failedTestResults := []*lib.TestResult{}
+func getFailedTestResults(testResults []lib.TestResult) []lib.TestResult {
+	failedTestResults := []lib.TestResult{}
 	for _, result := range testResults {
 		if !result.Success {
 			failedTestResults = append(failedTestResults, result)
@@ -176,7 +163,7 @@ func getFailedTestResults(testResults []*lib.TestResult) []*lib.TestResult {
 	return failedTestResults
 }
 
-func outputResults(failedTestResults []*lib.TestResult, nbTestsRan int) {
+func outputResults(failedTestResults []lib.TestResult, nbTestsRan int) {
 	for _, failedResult := range failedTestResults {
 		redBold.Printf("%s: Failed with exit code %d\n", failedResult.TestFile, failedResult.ExitCode)
 		red.Printf("Output:\n%s\n", failedResult.Output)
@@ -190,17 +177,17 @@ func outputResults(failedTestResults []*lib.TestResult, nbTestsRan int) {
 	}
 }
 
-func outputResultsJSON(failedTestResults []*lib.TestResult, nbTestsRan int) {
+func outputResultsJSON(failedTestResults []lib.TestResult, nbTestsRan int) {
 	// This is the only place where we need this struct, so anonymous struct seems appropriate
 	jsonOutputStruct := struct {
-		Passed     int               `json:"passed"`
-		Failed     int               `json:"failed"`
-		FailedList []*lib.TestResult `json:"failedList,omitempty"`
+		Passed     int              `json:"passed"`
+		Failed     int              `json:"failed"`
+		FailedList []lib.TestResult `json:"failedList"`
 	}{
 		Passed:     nbTestsRan - len(failedTestResults),
 		Failed:     len(failedTestResults),
 		FailedList: failedTestResults,
 	}
 	jsonOutput, _ := json.Marshal(jsonOutputStruct)
-	ui.Print(string(jsonOutput))
+	ui.Write(jsonOutput)
 }

@@ -16,11 +16,13 @@ import (
 var cfgFile string
 
 // Creating printers globally to simplify printing
-var ui *termui.UI
-var green = color.New(color.FgGreen)
-var greenBold = color.New(color.FgGreen)
-var red = color.New(color.FgRed)
-var redBold = color.New(color.FgRed, color.Bold)
+var (
+	ui        *termui.UI
+	green     = color.New(color.FgGreen)
+	greenBold = color.New(color.FgGreen, color.Bold)
+	red       = color.New(color.FgRed)
+	redBold   = color.New(color.FgRed, color.Bold)
+)
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -39,10 +41,6 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports Persistent Flags, which, if defined here,
-	// will be global for your application.
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.test-brain.yaml)")
 	ui = termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
