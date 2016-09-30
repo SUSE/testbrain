@@ -1,0 +1,23 @@
+#!/bin/sh
+
+OSES="linux darwin"
+
+set -o errexit
+
+. make/include/colors.sh
+. make/include/versioning.sh
+
+echo "${OK_COLOR}==> Configuration ${ERROR_COLOR}"
+
+echo ROOT..... $GIT_ROOT
+echo DESCRIBE. $GIT_DESCRIBE
+echo BRANCH... $GIT_BRANCH
+echo TAG...... $GIT_TAG
+echo COMMIT... $GIT_COMMITS
+echo SHA...... $GIT_SHA
+echo NAME..... $ARTIFACT_NAME
+echo VERSION.. $ARTIFACT_VERSION
+echo APP...... $APP_VERSION
+
+
+echo "${NO_COLOR}\c"
