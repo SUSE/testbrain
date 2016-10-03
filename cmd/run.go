@@ -18,49 +18,42 @@ import (
 	"github.com/hpcloud/testbrain/lib"
 )
 
-// Flags from the command line are set in these variables during setupConfigVars()
-var (
-	jsonOutput bool
-	testFolder string
-	timeout    time.Duration
-	verbose    bool
-)
-
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Runs all tests",
 	Long: `Runs all bash tests in the designated test folder,
 gathering results and outputs and summarizing it.`,
-	Run: runCommand,
+	Run: runCommandWithViperArgs,
 }
 
 func init() {
 	RootCmd.AddCommand(runCmd)
-	runCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
 	runCmd.PersistentFlags().String("testfolder", "tests", "Folder containing the test files to run")
-	runCmd.PersistentFlags().BoolP("verbose", "v", false, "Output the progress of running tests")
 	runCmd.PersistentFlags().Int("timeout", 300, "Timeout (in seconds) for each individual test")
+	runCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
+	runCmd.PersistentFlags().BoolP("verbose", "v", false, "Output the progress of running tests")
 
 	viper.BindPFlags(runCmd.PersistentFlags())
-	setupConfigVars()
 }
 
-func setupConfigVars() {
-	jsonOutput = viper.GetBool("jsonOutput")
-	testFolder = viper.GetString("testFolder")
-	verbose = viper.GetBool("verbose")
+func runCommandWithViperArgs(cmd *cobra.Command, args []string) {
+	flagTestFolder := viper.GetString("testfolder")
 	timeoutInSeconds := viper.GetInt("timeout")
-	timeout = time.Duration(timeoutInSeconds) * time.Second
+	flagJSONOutput := viper.GetBool("json")
+	flagVerbose := viper.GetBool("verbose")
+	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
+	runCommand(flagTestFolder, flagTimeout, flagJSONOutput, flagVerbose)
 }
 
-func runCommand(cmd *cobra.Command, args []string) {
+func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbose bool) {
 	testFiles := getTestScripts(testFolder)
 	if !jsonOutput {
 		ui.Printf("Found %d test files\n", len(testFiles))
 	}
 
-	testResults := runAllTests(testFiles)
+	outputIndividualResults := jsonOutput && !verbose
+	testResults := runAllTests(testFiles, testFolder, timeout, outputIndividualResults)
 
 	failedTestResults := getFailedTestResults(testResults)
 	if jsonOutput {
@@ -85,20 +78,21 @@ func getTestScripts(testFolder string) []string {
 	return testFileList
 }
 
-func runAllTests(testFiles []string) []lib.TestResult {
+func runAllTests(testFiles []string, testFolder string,
+	timeout time.Duration, outputIndividualResults bool) []lib.TestResult {
 	var testResults []lib.TestResult
 	for i, testFile := range testFiles {
-		if verbose && !jsonOutput {
+		if outputIndividualResults {
 			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
-		result := runSingleTest(testFile, testFolder)
-		printVerboseSingleTestResult(result)
+		result := runSingleTest(testFile, testFolder, timeout)
+		printVerboseSingleTestResult(result, outputIndividualResults)
 		testResults = append(testResults, result)
 	}
 	return testResults
 }
 
-func runSingleTest(testFile string, testFolder string) lib.TestResult {
+func runSingleTest(testFile string, testFolder string, timeout time.Duration) lib.TestResult {
 	command := exec.Command(path.Join(testFolder, testFile))
 	commandOutput := &bytes.Buffer{}
 	command.Stdout = commandOutput
@@ -154,8 +148,8 @@ func getErrorCode(err error, command *exec.Cmd) (int, error) {
 	return lib.UnknownExitCode, nil
 }
 
-func printVerboseSingleTestResult(result lib.TestResult) {
-	if verbose && !jsonOutput {
+func printVerboseSingleTestResult(result lib.TestResult, outputIndividualResults bool) {
+	if outputIndividualResults {
 		if result.Success {
 			green.Println("OK")
 		} else {
