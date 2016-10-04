@@ -5,12 +5,15 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/hpcloud/termui"
 
 	"github.com/hpcloud/testbrain/lib"
 )
+
+const defaultTimeout = 300 * time.Second
 
 func setupTestUI() (*bytes.Buffer, *bytes.Buffer) {
 	in, out := &bytes.Buffer{}, &bytes.Buffer{}
@@ -46,7 +49,7 @@ func TestGetTestScripts(t *testing.T) {
 
 func TestRunSingleTestSuccess(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata")
-	testResult := runSingleTest("hello_world.sh", testFolder)
+	testResult := runSingleTest("hello_world.sh", testFolder, defaultTimeout)
 	expected := lib.TestResult{
 		TestFile: "hello_world.sh",
 		Success:  true,
@@ -60,12 +63,27 @@ func TestRunSingleTestSuccess(t *testing.T) {
 
 func TestRunSingleTestFailure(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata")
-	testResult := runSingleTest("failure_test.sh", testFolder)
+	testResult := runSingleTest("failure_test.sh", testFolder, defaultTimeout)
 	expected := lib.TestResult{
 		TestFile: "failure_test.sh",
 		Success:  false,
 		ExitCode: 42,
 		Output:   "Goodbye World!\n",
+	}
+	if !reflect.DeepEqual(testResult, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testResult)
+	}
+}
+
+func TestRunSingleTestTimeout(t *testing.T) {
+	testFolder, _ := filepath.Abs("../testdata")
+	testResult := runSingleTest("timeout.sh", testFolder, 5*time.Second)
+	expectedOutput := "Stuck in an infinite loop!\nStuck in an infinite loop!\nKilled by testbrain: Timed out after 5s"
+	expected := lib.TestResult{
+		TestFile: "timeout.sh",
+		Success:  false,
+		ExitCode: -1,
+		Output:   expectedOutput,
 	}
 	if !reflect.DeepEqual(testResult, expected) {
 		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testResult)
