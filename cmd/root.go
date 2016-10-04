@@ -14,6 +14,7 @@ import (
 )
 
 var cfgFile string
+var version string
 
 // Creating printers globally to simplify printing
 var (
@@ -32,7 +33,8 @@ var RootCmd = &cobra.Command{
 
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
+func Execute(versionArg string) {
+	version = versionArg
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(-1)

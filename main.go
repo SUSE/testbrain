@@ -1,7 +1,25 @@
 package main
 
-import "github.com/hpcloud/testbrain/cmd"
+import (
+	"errors"
+	"os"
+
+	"github.com/hpcloud/termui"
+	"github.com/hpcloud/testbrain/cmd"
+)
+
+// This variable is set in the make/build script, during the go build
+var version = "0"
 
 func main() {
-	cmd.Execute()
+	ui := termui.New(os.Stdin, os.Stdout, nil)
+
+	switch {
+	case version == "":
+		termui.PrintAndExit(ui, errors.New("Testbrain was built incorrectly and its version string is empty."))
+	case version == "0":
+		termui.PrintAndExit(ui, errors.New("Testbrain was built incorrectly and it doesn't have a proper version string."))
+	}
+
+	cmd.Execute(version)
 }
