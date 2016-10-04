@@ -52,7 +52,7 @@ func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbo
 		ui.Printf("Found %d test files\n", len(testFiles))
 	}
 
-	outputIndividualResults := jsonOutput && !verbose
+	outputIndividualResults := !jsonOutput && verbose
 	testResults := runAllTests(testFiles, testFolder, timeout, outputIndividualResults)
 
 	failedTestResults := getFailedTestResults(testResults)
