@@ -21,7 +21,7 @@ import (
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run",
-	Short: "Runs all tests",
+	Short: "Runs all tests.",
 	Long: `Runs all bash tests in the designated test folder,
 gathering results and outputs and summarizing it.`,
 	Run: runCommandWithViperArgs,
