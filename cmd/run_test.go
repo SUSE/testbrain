@@ -48,7 +48,7 @@ func TestGetTestScripts(t *testing.T) {
 }
 
 func TestRunSingleTestSuccess(t *testing.T) {
-	testFolder, _ := filepath.Abs("../testdata")
+	testFolder, _ := filepath.Abs("../testdata/success")
 	testResult := runSingleTest("hello_world.sh", testFolder, defaultTimeout)
 	expected := lib.TestResult{
 		TestFile: "hello_world.sh",
@@ -62,7 +62,7 @@ func TestRunSingleTestSuccess(t *testing.T) {
 }
 
 func TestRunSingleTestFailure(t *testing.T) {
-	testFolder, _ := filepath.Abs("../testdata")
+	testFolder, _ := filepath.Abs("../testdata/failure")
 	testResult := runSingleTest("failure_test.sh", testFolder, defaultTimeout)
 	expected := lib.TestResult{
 		TestFile: "failure_test.sh",
@@ -107,5 +107,21 @@ func TestOutputResultsJSON(t *testing.T) {
 	expected := `{"passed":3,"failed":2,"failedList":[{"filename":"testfile1","success":false,"exitcode":1,"output":"It didn't work!"},{"filename":"testfile2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
+	}
+}
+
+func TestRunCommandSuccess(t *testing.T) {
+	testFolder, _ := filepath.Abs("../testdata/success")
+	err := runCommand(testFolder, defaultTimeout, true, false)
+	if err != nil {
+		t.Fatalf("Didn't expect an error, got '%s'", err)
+	}
+}
+
+func TestRunCommandFailure(t *testing.T) {
+	testFolder, _ := filepath.Abs("../testdata/failure")
+	err := runCommand(testFolder, defaultTimeout, true, false)
+	if err == nil {
+		t.Fatal("Expected to get an error, got 'nil'")
 	}
 }

@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os/exec"
@@ -24,7 +25,7 @@ var runCmd = &cobra.Command{
 	Short: "Runs all tests.",
 	Long: `Runs all bash tests in the designated test folder,
 gathering results and outputs and summarizing it.`,
-	Run: runCommandWithViperArgs,
+	RunE: runCommandWithViperArgs,
 }
 
 func init() {
@@ -37,16 +38,16 @@ func init() {
 	viper.BindPFlags(runCmd.PersistentFlags())
 }
 
-func runCommandWithViperArgs(cmd *cobra.Command, args []string) {
+func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 	flagTestFolder := viper.GetString("testfolder")
 	timeoutInSeconds := viper.GetInt("timeout")
 	flagJSONOutput := viper.GetBool("json")
 	flagVerbose := viper.GetBool("verbose")
 	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
-	runCommand(flagTestFolder, flagTimeout, flagJSONOutput, flagVerbose)
+	return runCommand(flagTestFolder, flagTimeout, flagJSONOutput, flagVerbose)
 }
 
-func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbose bool) {
+func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbose bool) error {
 	testFiles := getTestScripts(testFolder)
 	if !jsonOutput {
 		ui.Printf("Found %d test files\n", len(testFiles))
@@ -61,6 +62,10 @@ func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbo
 	} else {
 		outputResults(failedTestResults, len(testResults))
 	}
+	if len(failedTestResults) == 0 {
+		return nil
+	}
+	return errors.New("Some tests failed")
 }
 
 func getTestScripts(testFolder string) []string {
