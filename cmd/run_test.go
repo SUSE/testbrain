@@ -19,6 +19,7 @@ func setupTestUI() (*bytes.Buffer, *bytes.Buffer) {
 	in, out := &bytes.Buffer{}, &bytes.Buffer{}
 	ui = termui.New(in, out, nil)
 	color.Output = ui
+	color.NoColor = false
 	return in, out
 }
 
@@ -97,6 +98,52 @@ func TestOutputResults(t *testing.T) {
 	expected := "\x1b[31;1mtestfile1: Failed with exit code 1\n\x1b[0m\x1b[31mOutput:\nIt didn't work!\n\x1b[0m\x1b[31;1mtestfile2: Failed with exit code 2\n\x1b[0m\x1b[31mOutput:\nIt didn't work again!\n\x1b[0m\x1b[31;1m\nTests complete: 3 Passed, 2 Failed\n\x1b[0m"
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
+	}
+}
+
+func TestPrintVerboseSingleTestResult(t *testing.T) {
+	_, out := setupTestUI()
+
+	type testInfo struct {
+		success  bool
+		output   bool
+		expected string
+	}
+	testData := []testInfo{
+		{
+			success:  true,
+			output:   false,
+			expected: "",
+		},
+		{
+			success:  true,
+			output:   true,
+			expected: color.GreenString("OK\n"),
+		},
+		{
+			success:  false,
+			output:   false,
+			expected: "",
+		},
+		{
+			success: false,
+			output:  true,
+			expected: color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED\n") +
+				color.RedString("Output:\ntest output\n"),
+		},
+	}
+
+	// When we move to go1.7 we can do subtests
+	for _, sample := range testData {
+		result := lib.TestResult{
+			Success: sample.success,
+			Output:  "test output",
+		}
+		out.Reset()
+		printVerboseSingleTestResult(result, sample.output)
+		if got := out.String(); got != sample.expected {
+			t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", sample.expected, got)
+		}
 	}
 }
 

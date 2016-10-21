@@ -159,6 +159,7 @@ func printVerboseSingleTestResult(result lib.TestResult, outputIndividualResults
 			green.Println("OK")
 		} else {
 			redBold.Println("FAILED")
+			red.Printf("Output:\n%s\n", result.Output)
 		}
 	}
 }
