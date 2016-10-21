@@ -177,7 +177,6 @@ func getFailedTestResults(testResults []lib.TestResult) []lib.TestResult {
 func outputResults(failedTestResults []lib.TestResult, nbTestsRan int) {
 	for _, failedResult := range failedTestResults {
 		redBold.Printf("%s: Failed with exit code %d\n", failedResult.TestFile, failedResult.ExitCode)
-		red.Printf("Output:\n%s\n", failedResult.Output)
 	}
 	nbTestsPassed := nbTestsRan - len(failedTestResults)
 	summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", nbTestsPassed, len(failedTestResults))

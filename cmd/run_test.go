@@ -95,7 +95,7 @@ func TestOutputResults(t *testing.T) {
 	_, out := setupTestUI()
 	failedTestResults := setupFailedTestResults()
 	outputResults(failedTestResults, 5)
-	expected := "\x1b[31;1mtestfile1: Failed with exit code 1\n\x1b[0m\x1b[31mOutput:\nIt didn't work!\n\x1b[0m\x1b[31;1mtestfile2: Failed with exit code 2\n\x1b[0m\x1b[31mOutput:\nIt didn't work again!\n\x1b[0m\x1b[31;1m\nTests complete: 3 Passed, 2 Failed\n\x1b[0m"
+	expected := "\x1b[31;1mtestfile1: Failed with exit code 1\n\x1b[0m\x1b[31;1mtestfile2: Failed with exit code 2\n\x1b[0m\x1b[31;1m\nTests complete: 3 Passed, 2 Failed\n\x1b[0m"
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
 	}
