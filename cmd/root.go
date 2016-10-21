@@ -27,8 +27,9 @@ var (
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "testbrain",
-	Short: "Acceptance tests brain for HCF",
+	Use:          "testbrain",
+	Short:        "Acceptance tests brain for HCF",
+	SilenceUsage: true,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.
@@ -36,7 +37,6 @@ var RootCmd = &cobra.Command{
 func Execute(versionArg string) {
 	version = versionArg
 	if err := RootCmd.Execute(); err != nil {
-		fmt.Println(err)
 		os.Exit(-1)
 	}
 }
