@@ -24,7 +24,7 @@ var runCmd = &cobra.Command{
 	Use:   "run [flags] [files...]",
 	Short: "Runs all tests.",
 	Long: `Runs all bash tests given, gathering results and outputs
-and summarizing it. If no files are given, the directory "test" is
+and summarizing it. If no files are given, the directory "tests" is
 assumed.  Any directories will be walked recursively.`,
 	RunE: runCommandWithViperArgs,
 }
@@ -40,11 +40,6 @@ func init() {
 	viper.BindPFlags(runCmd.PersistentFlags())
 }
 
-type testPath struct {
-	fullPath string
-	relPath  string
-}
-
 func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 	timeoutInSeconds := viper.GetInt("timeout")
 	flagJSONOutput := viper.GetBool("json")
@@ -53,14 +48,14 @@ func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 	flagInclude := viper.GetString("include")
 	flagExclude := viper.GetString("exclude")
 	if len(args) == 0 {
-		// No args given, directory "test" is assumed
-		args = []string{"test"}
+		// No args given, directory "tests" is assumed
+		args = []string{"tests"}
 	}
 	return runCommand(args, flagInclude, flagExclude, flagTimeout, flagJSONOutput, flagVerbose)
 }
 
 func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.Duration, jsonOutput bool, verbose bool) error {
-	testFiles, err := getTestScripts(testFolders, includeRe, excludeRe)
+	testRoot, testFiles, err := getTestScripts(testFolders, includeRe, excludeRe)
 	if err != nil {
 		return err
 	}
@@ -69,7 +64,7 @@ func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.
 	}
 
 	outputIndividualResults := !jsonOutput && verbose
-	testResults := runAllTests(testFiles, timeout, outputIndividualResults)
+	testResults := runAllTests(testFiles, testRoot, timeout, outputIndividualResults)
 
 	failedTestResults := getFailedTestResults(testResults)
 	if jsonOutput {
@@ -83,25 +78,28 @@ func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.
 	return errors.New("Some tests failed")
 }
 
-func getTestScripts(testFolders []string, include, exclude string) ([]testPath, error) {
+func getTestScripts(testFolders []string, include, exclude string) (string, []string, error) {
 	includeRe, err := regexp.Compile(include)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing files to include: %s", err)
+		return "", nil, fmt.Errorf("Error parsing files to include: %s", err)
 	}
 	excludeRe, err := regexp.Compile(exclude)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing files to exclude: %s", err)
+		return "", nil, fmt.Errorf("Error parsing files to exclude: %s", err)
 	}
 
-	var foundTests []testPath
+	var foundTests []string
 	for _, testFolder := range testFolders {
 		info, err := os.Stat(testFolder)
 		if err != nil {
-			return nil, fmt.Errorf("Error reading test file %s: %s", testFolder, err)
+			return "", nil, fmt.Errorf("Error reading test file %s: %s", testFolder, err)
 		}
 		if !info.IsDir() {
 			// This is an individual test
-			foundTests = append(foundTests, testPath{fullPath: testFolder, relPath: testFolder})
+			if excludeRe.MatchString(testFolder) {
+				continue
+			}
+			foundTests = append(foundTests, testFolder)
 			continue
 		}
 		err = filepath.Walk(testFolder, func(path string, info os.FileInfo, err error) error {
@@ -117,42 +115,66 @@ func getTestScripts(testFolders []string, include, exclude string) ([]testPath, 
 			if excludeRe.MatchString(path) {
 				return nil
 			}
-			relPath, err := filepath.Rel(testFolder, path)
-			if err != nil {
-				return err
-			}
-			foundTests = append(foundTests, testPath{fullPath: path, relPath: relPath})
+			foundTests = append(foundTests, path)
 			return nil
 		})
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 	}
 
-	return foundTests, nil
+	var commonPrefix string
+	if len(testFolders) > 1 {
+		commonPrefix, err = lib.CommonPathPrefix(foundTests)
+		if err != nil {
+			return "", nil, fmt.Errorf("Error getting common prefix for paths: %s", err)
+		}
+	} else {
+		// Only one test folder given; use it as the prefix; unless it's a file,
+		// then in which case use its directory
+		testFolder := testFolders[0]
+		info, err := os.Stat(testFolder)
+		if err != nil {
+			return "", nil, fmt.Errorf("Error stating %s: %s", testFolder, err)
+		}
+		if info.IsDir() {
+			commonPrefix = testFolder
+		} else {
+			commonPrefix = filepath.Dir(testFolder)
+		}
+	}
+	for i, path := range foundTests {
+		relPath, err := filepath.Rel(commonPrefix, path)
+		if err != nil {
+			return "", nil, fmt.Errorf("Error finding relative path of %s from %s: %s", path, commonPrefix, err)
+		}
+		foundTests[i] = relPath
+	}
+	return commonPrefix, foundTests, nil
 }
 
-func runAllTests(testFiles []testPath, timeout time.Duration, outputIndividualResults bool) []lib.TestResult {
+func runAllTests(testFiles []string, testFolder string,
+	timeout time.Duration, outputIndividualResults bool) []lib.TestResult {
 	var testResults []lib.TestResult
 	for i, testFile := range testFiles {
 		if outputIndividualResults {
 			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
-		result := runSingleTest(testFile, timeout)
+		result := runSingleTest(testFile, testFolder, timeout)
 		printVerboseSingleTestResult(result, outputIndividualResults)
 		testResults = append(testResults, result)
 	}
 	return testResults
 }
 
-func runSingleTest(testFile testPath, timeout time.Duration) lib.TestResult {
-	command := exec.Command(testFile.fullPath)
+func runSingleTest(testFile string, testFolder string, timeout time.Duration) lib.TestResult {
+	command := exec.Command(filepath.Join(testFolder, testFile))
 	commandOutput := &bytes.Buffer{}
 	command.Stdout = commandOutput
 	command.Stderr = commandOutput
 	err := command.Start()
 	if err != nil {
-		return lib.ErrorTestResult(testFile.relPath, err)
+		return lib.ErrorTestResult(testFile, err)
 	}
 	var timeoutLock sync.Mutex
 	timeoutReached := false
@@ -172,11 +194,11 @@ func runSingleTest(testFile testPath, timeout time.Duration) lib.TestResult {
 
 	exitCode, err := getErrorCode(err, command)
 	if err != nil {
-		return lib.ErrorTestResult(testFile.relPath, err)
+		return lib.ErrorTestResult(testFile, err)
 	}
 
 	return lib.TestResult{
-		TestFile: testFile.relPath,
+		TestFile: testFile,
 		Success:  command.ProcessState.Success(),
 		ExitCode: exitCode,
 		Output:   string(commandOutput.Bytes()),
