@@ -27,8 +27,8 @@ func CommonPathPrefix(paths []string) (string, error) {
 	}
 
 	var matchingParts []string
-	if paths[0][0] == filepath.Separator {
-		// Path starts with a separator (unix), add it in front
+	if '/' == filepath.Separator {
+		// On unix, add separator in front
 		matchingParts = append(matchingParts, string(filepath.Separator))
 	}
 	for i := 0; i < minLen; i++ {

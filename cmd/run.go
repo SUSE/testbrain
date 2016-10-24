@@ -36,6 +36,7 @@ func init() {
 	runCmd.PersistentFlags().BoolP("verbose", "v", false, "Output the progress of running tests")
 	runCmd.PersistentFlags().String("include", "\\.sh$", "Regular expression of subset of tests to run")
 	runCmd.PersistentFlags().String("exclude", "^$", "Regular expression of subset of tests to not run, applied after --include")
+	runCmd.PersistentFlags().BoolP("dry-run", "n", false, "Do not actually run the tests")
 
 	viper.BindPFlags(runCmd.PersistentFlags())
 }
@@ -47,20 +48,31 @@ func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
 	flagInclude := viper.GetString("include")
 	flagExclude := viper.GetString("exclude")
+	flagDryRun := viper.GetBool("dry-run")
 	if len(args) == 0 {
 		// No args given, directory "tests" is assumed
 		args = []string{"tests"}
 	}
-	return runCommand(args, flagInclude, flagExclude, flagTimeout, flagJSONOutput, flagVerbose)
+	return runCommand(args, flagInclude, flagExclude, flagTimeout, flagJSONOutput, flagVerbose, flagDryRun)
 }
 
-func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.Duration, jsonOutput bool, verbose bool) error {
+func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.Duration, jsonOutput, verbose, dryRun bool) error {
 	testRoot, testFiles, err := getTestScripts(testFolders, includeRe, excludeRe)
 	if err != nil {
 		return err
 	}
 	if !jsonOutput {
 		ui.Printf("Found %d test files\n", len(testFiles))
+	}
+	if dryRun {
+		if !jsonOutput {
+			ui.Printf("Test root: %s\n", testRoot)
+			ui.Printf("Test files:\n")
+			for _, testFile := range testFiles {
+				ui.Printf("\t%s\n", testFile)
+			}
+		}
+		return nil
 	}
 
 	outputIndividualResults := !jsonOutput && verbose
@@ -89,7 +101,11 @@ func getTestScripts(testFolders []string, include, exclude string) (string, []st
 	}
 
 	var foundTests []string
-	for _, testFolder := range testFolders {
+	for _, testFolderOriginal := range testFolders {
+		testFolder, err := filepath.Abs(testFolderOriginal)
+		if err != nil {
+			return "", nil, fmt.Errorf("Error making %s absolute", testFolderOriginal)
+		}
 		info, err := os.Stat(testFolder)
 		if err != nil {
 			return "", nil, fmt.Errorf("Error reading test file %s: %s", testFolder, err)

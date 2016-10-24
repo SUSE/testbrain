@@ -1,6 +1,8 @@
 package lib
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -12,6 +14,11 @@ func TestCommonPathPrefix(t *testing.T) {
 		name     string
 		input    []string
 		expected string
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Error getting working directory: %s", err)
 	}
 
 	testSamples := []testSampleModel{
@@ -44,6 +51,11 @@ func TestCommonPathPrefix(t *testing.T) {
 			name:     "No input should not crash",
 			input:    []string{},
 			expected: "",
+		},
+		testSampleModel{
+			name:     "Multiple relative paths",
+			input:    []string{"a/b/c", "a/b/d"},
+			expected: filepath.Join(wd, "a/b"),
 		},
 	}
 
