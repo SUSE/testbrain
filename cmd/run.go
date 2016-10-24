@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os/exec"
@@ -65,7 +64,7 @@ func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbo
 	if len(failedTestResults) == 0 {
 		return nil
 	}
-	return errors.New("Some tests failed")
+	return fmt.Errorf("%d tests failed", len(failedTestResults))
 }
 
 func getTestScripts(testFolder string) []string {
