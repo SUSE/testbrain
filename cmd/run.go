@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sync"
 	"syscall"
 	"time"
 
@@ -153,12 +154,21 @@ func runSingleTest(testFile testPath, timeout time.Duration) lib.TestResult {
 	if err != nil {
 		return lib.ErrorTestResult(testFile.relPath, err)
 	}
+	var timeoutLock sync.Mutex
+	timeoutReached := false
 	timer := time.AfterFunc(timeout, func() {
 		command.Process.Kill()
-		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", timeout))
+		timeoutLock.Lock()
+		defer timeoutLock.Unlock()
+		timeoutReached = true
 	})
 	err = command.Wait()
 	timer.Stop()
+	timeoutLock.Lock()
+	if timeoutReached {
+		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", timeout))
+	}
+	timeoutLock.Unlock()
 
 	exitCode, err := getErrorCode(err, command)
 	if err != nil {

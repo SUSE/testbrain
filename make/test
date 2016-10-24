@@ -6,4 +6,4 @@ set -o errexit
 echo "${OK_COLOR}==> Testing${NO_COLOR}"
 gocov test $(go list ./... | \
     grep -v '/testbrain/vendor') \
-    -v -timeout 60m | gocov-xml > coverage.xml
+    -v -race -timeout 60m | gocov-xml > coverage.xml
