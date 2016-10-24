@@ -15,6 +15,11 @@ import (
 
 const defaultTimeout = 300 * time.Second
 
+var (
+	defaultInclude = "\\.sh$"
+	defaultExclude = "^$"
+)
+
 func setupTestUI() (*bytes.Buffer, *bytes.Buffer) {
 	in, out := &bytes.Buffer{}, &bytes.Buffer{}
 	ui = termui.New(in, out, nil)
@@ -41,8 +46,20 @@ func setupFailedTestResults() []lib.TestResult {
 
 func TestGetTestScripts(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/testfolder1")
-	testScripts := getTestScripts(testFolder)
-	expected := []string{"000_script.sh", "001_script.sh"}
+	testScripts, err := getTestScripts([]string{testFolder}, defaultInclude, defaultExclude)
+	if err != nil {
+		t.Fatalf("Error getting test sctipts: %s", err)
+	}
+	expected := []testPath{
+		testPath{
+			fullPath: filepath.Join(testFolder, "000_script.sh"),
+			relPath:  "000_script.sh",
+		},
+		testPath{
+			fullPath: filepath.Join(testFolder, "001_script.sh"),
+			relPath:  "001_script.sh",
+		},
+	}
 	if !reflect.DeepEqual(testScripts, expected) {
 		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
 	}
@@ -50,7 +67,8 @@ func TestGetTestScripts(t *testing.T) {
 
 func TestRunSingleTestSuccess(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/success")
-	testResult := runSingleTest("hello_world.sh", testFolder, defaultTimeout)
+	fullPath := filepath.Join(testFolder, "hello_world.sh")
+	testResult := runSingleTest(testPath{fullPath, "hello_world.sh"}, defaultTimeout)
 	expected := lib.TestResult{
 		TestFile: "hello_world.sh",
 		Success:  true,
@@ -64,7 +82,8 @@ func TestRunSingleTestSuccess(t *testing.T) {
 
 func TestRunSingleTestFailure(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/failure")
-	testResult := runSingleTest("failure_test.sh", testFolder, defaultTimeout)
+	fullPath := filepath.Join(testFolder, "failure_test.sh")
+	testResult := runSingleTest(testPath{fullPath, "failure_test.sh"}, defaultTimeout)
 	expected := lib.TestResult{
 		TestFile: "failure_test.sh",
 		Success:  false,
@@ -78,7 +97,8 @@ func TestRunSingleTestFailure(t *testing.T) {
 
 func TestRunSingleTestTimeout(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata")
-	testResult := runSingleTest("timeout.sh", testFolder, 1*time.Second)
+	fullPath := filepath.Join(testFolder, "timeout.sh")
+	testResult := runSingleTest(testPath{fullPath, "timeout.sh"}, 1*time.Second)
 	expectedOutput := "Stuck in an infinite loop!\nStuck in an infinite loop!\nStuck in an infinite loop!\nKilled by testbrain: Timed out after 1s"
 	expected := lib.TestResult{
 		TestFile: "timeout.sh",
@@ -159,7 +179,7 @@ func TestOutputResultsJSON(t *testing.T) {
 
 func TestRunCommandSuccess(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/success")
-	err := runCommand(testFolder, defaultTimeout, true, false)
+	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false)
 	if err != nil {
 		t.Fatalf("Didn't expect an error, got '%s'", err)
 	}
@@ -167,7 +187,7 @@ func TestRunCommandSuccess(t *testing.T) {
 
 func TestRunCommandFailure(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/failure")
-	err := runCommand(testFolder, defaultTimeout, true, false)
+	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false)
 	if err == nil {
 		t.Fatal("Expected to get an error, got 'nil'")
 	}

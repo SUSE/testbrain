@@ -5,14 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
-	"path"
-	"strings"
+	"path/filepath"
+	"regexp"
 	"syscall"
 	"time"
 
-	"github.com/hpcloud/termui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -21,40 +20,55 @@ import (
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
-	Use:   "run",
+	Use:   "run [flags] [files...]",
 	Short: "Runs all tests.",
-	Long: `Runs all bash tests in the designated test folder,
-gathering results and outputs and summarizing it.`,
+	Long: `Runs all bash tests given, gathering results and outputs
+and summarizing it. If no files are given, the directory "test" is
+assumed.  Any directories will be walked recursively.`,
 	RunE: runCommandWithViperArgs,
 }
 
 func init() {
 	RootCmd.AddCommand(runCmd)
-	runCmd.PersistentFlags().String("testfolder", "tests", "Folder containing the test files to run")
 	runCmd.PersistentFlags().Int("timeout", 300, "Timeout (in seconds) for each individual test")
 	runCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
 	runCmd.PersistentFlags().BoolP("verbose", "v", false, "Output the progress of running tests")
+	runCmd.PersistentFlags().String("include", "\\.sh$", "Regular expression of subset of tests to run")
+	runCmd.PersistentFlags().String("exclude", "^$", "Regular expression of subset of tests to not run, applied after --include")
 
 	viper.BindPFlags(runCmd.PersistentFlags())
 }
 
+type testPath struct {
+	fullPath string
+	relPath  string
+}
+
 func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
-	flagTestFolder := viper.GetString("testfolder")
 	timeoutInSeconds := viper.GetInt("timeout")
 	flagJSONOutput := viper.GetBool("json")
 	flagVerbose := viper.GetBool("verbose")
 	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
-	return runCommand(flagTestFolder, flagTimeout, flagJSONOutput, flagVerbose)
+	flagInclude := viper.GetString("include")
+	flagExclude := viper.GetString("exclude")
+	if len(args) == 0 {
+		// No args given, directory "test" is assumed
+		args = []string{"test"}
+	}
+	return runCommand(args, flagInclude, flagExclude, flagTimeout, flagJSONOutput, flagVerbose)
 }
 
-func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbose bool) error {
-	testFiles := getTestScripts(testFolder)
+func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.Duration, jsonOutput bool, verbose bool) error {
+	testFiles, err := getTestScripts(testFolders, includeRe, excludeRe)
+	if err != nil {
+		return err
+	}
 	if !jsonOutput {
 		ui.Printf("Found %d test files\n", len(testFiles))
 	}
 
 	outputIndividualResults := !jsonOutput && verbose
-	testResults := runAllTests(testFiles, testFolder, timeout, outputIndividualResults)
+	testResults := runAllTests(testFiles, timeout, outputIndividualResults)
 
 	failedTestResults := getFailedTestResults(testResults)
 	if jsonOutput {
@@ -68,43 +82,76 @@ func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbo
 	return errors.New("Some tests failed")
 }
 
-func getTestScripts(testFolder string) []string {
-	fileList, err := ioutil.ReadDir(testFolder)
+func getTestScripts(testFolders []string, include, exclude string) ([]testPath, error) {
+	includeRe, err := regexp.Compile(include)
 	if err != nil {
-		redBold.Println("Could not open test folder: " + testFolder)
-		termui.PrintAndExit(ui, err)
+		return nil, fmt.Errorf("Error parsing files to include: %s", err)
 	}
-	var testFileList []string
-	for _, file := range fileList {
-		if strings.HasSuffix(file.Name(), ".sh") {
-			testFileList = append(testFileList, file.Name())
+	excludeRe, err := regexp.Compile(exclude)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing files to exclude: %s", err)
+	}
+
+	var foundTests []testPath
+	for _, testFolder := range testFolders {
+		info, err := os.Stat(testFolder)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading test file %s: %s", testFolder, err)
+		}
+		if !info.IsDir() {
+			// This is an individual test
+			foundTests = append(foundTests, testPath{fullPath: testFolder, relPath: testFolder})
+			continue
+		}
+		err = filepath.Walk(testFolder, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if !includeRe.MatchString(path) {
+				return nil
+			}
+			if excludeRe.MatchString(path) {
+				return nil
+			}
+			relPath, err := filepath.Rel(testFolder, path)
+			if err != nil {
+				return err
+			}
+			foundTests = append(foundTests, testPath{fullPath: path, relPath: relPath})
+			return nil
+		})
+		if err != nil {
+			return nil, err
 		}
 	}
-	return testFileList
+
+	return foundTests, nil
 }
 
-func runAllTests(testFiles []string, testFolder string,
-	timeout time.Duration, outputIndividualResults bool) []lib.TestResult {
+func runAllTests(testFiles []testPath, timeout time.Duration, outputIndividualResults bool) []lib.TestResult {
 	var testResults []lib.TestResult
 	for i, testFile := range testFiles {
 		if outputIndividualResults {
 			ui.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
-		result := runSingleTest(testFile, testFolder, timeout)
+		result := runSingleTest(testFile, timeout)
 		printVerboseSingleTestResult(result, outputIndividualResults)
 		testResults = append(testResults, result)
 	}
 	return testResults
 }
 
-func runSingleTest(testFile string, testFolder string, timeout time.Duration) lib.TestResult {
-	command := exec.Command(path.Join(testFolder, testFile))
+func runSingleTest(testFile testPath, timeout time.Duration) lib.TestResult {
+	command := exec.Command(testFile.fullPath)
 	commandOutput := &bytes.Buffer{}
 	command.Stdout = commandOutput
 	command.Stderr = commandOutput
 	err := command.Start()
 	if err != nil {
-		return lib.ErrorTestResult(testFile, err)
+		return lib.ErrorTestResult(testFile.relPath, err)
 	}
 	timer := time.AfterFunc(timeout, func() {
 		command.Process.Kill()
@@ -115,11 +162,11 @@ func runSingleTest(testFile string, testFolder string, timeout time.Duration) li
 
 	exitCode, err := getErrorCode(err, command)
 	if err != nil {
-		return lib.ErrorTestResult(testFile, err)
+		return lib.ErrorTestResult(testFile.relPath, err)
 	}
 
 	return lib.TestResult{
-		TestFile: testFile,
+		TestFile: testFile.relPath,
 		Success:  command.ProcessState.Success(),
 		ExitCode: exitCode,
 		Output:   string(commandOutput.Bytes()),
