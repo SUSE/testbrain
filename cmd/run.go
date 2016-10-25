@@ -24,8 +24,9 @@ var runCmd = &cobra.Command{
 	Use:   "run [flags] [files...]",
 	Short: "Runs all tests.",
 	Long: `Runs all bash tests given, gathering results and outputs
-and summarizing it. If no files are given, the directory "tests" is
-assumed.  Any directories will be walked recursively.`,
+and summarizing it. If no files are given, the current
+working directory is assumed.  Any directories will be
+walked recursively.`,
 	RunE: runCommandWithViperArgs,
 }
 
@@ -34,7 +35,7 @@ func init() {
 	runCmd.PersistentFlags().Int("timeout", 300, "Timeout (in seconds) for each individual test")
 	runCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
 	runCmd.PersistentFlags().BoolP("verbose", "v", false, "Output the progress of running tests")
-	runCmd.PersistentFlags().String("include", "\\.sh$", "Regular expression of subset of tests to run")
+	runCmd.PersistentFlags().String("include", "_test\\.sh$", "Regular expression of subset of tests to run")
 	runCmd.PersistentFlags().String("exclude", "^$", "Regular expression of subset of tests to not run, applied after --include")
 	runCmd.PersistentFlags().BoolP("dry-run", "n", false, "Do not actually run the tests")
 
@@ -50,8 +51,12 @@ func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 	flagExclude := viper.GetString("exclude")
 	flagDryRun := viper.GetBool("dry-run")
 	if len(args) == 0 {
-		// No args given, directory "tests" is assumed
-		args = []string{"tests"}
+		// No args given, current working directory is assumed
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		args = []string{cwd}
 	}
 	return runCommand(args, flagInclude, flagExclude, flagTimeout, flagJSONOutput, flagVerbose, flagDryRun)
 }
@@ -148,7 +153,10 @@ func getTestScripts(testFolders []string, include, exclude string) (string, []st
 	} else {
 		// Only one test folder given; use it as the prefix; unless it's a file,
 		// then in which case use its directory
-		testFolder := testFolders[0]
+		testFolder, err := filepath.Abs(testFolders[0])
+		if err != nil {
+			return "", nil, fmt.Errorf("Error finding absolute path of %s: %s", testFolders[0], err)
+		}
 		info, err := os.Stat(testFolder)
 		if err != nil {
 			return "", nil, fmt.Errorf("Error stating %s: %s", testFolder, err)
