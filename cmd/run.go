@@ -117,6 +117,9 @@ func getTestScripts(testFolders []string, include, exclude string) (string, []st
 		}
 		if !info.IsDir() {
 			// This is an individual test
+			if !includeRe.MatchString(testFolder) {
+				continue
+			}
 			if excludeRe.MatchString(testFolder) {
 				continue
 			}
