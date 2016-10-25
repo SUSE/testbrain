@@ -15,6 +15,11 @@ import (
 
 const defaultTimeout = 300 * time.Second
 
+var (
+	defaultInclude = "_test\\.sh$"
+	defaultExclude = "^$"
+)
+
 func setupTestUI() (*bytes.Buffer, *bytes.Buffer) {
 	in, out := &bytes.Buffer{}, &bytes.Buffer{}
 	ui = termui.New(in, out, nil)
@@ -40,19 +45,140 @@ func setupFailedTestResults() []lib.TestResult {
 }
 
 func TestGetTestScripts(t *testing.T) {
+	t.Parallel()
+
 	testFolder, _ := filepath.Abs("../testdata/testfolder1")
-	testScripts := getTestScripts(testFolder)
-	expected := []string{"000_script.sh", "001_script.sh"}
+	testRoot, testScripts, err := getTestScripts([]string{testFolder}, defaultInclude, defaultExclude)
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if testFolder != testRoot {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+	expected := []string{"000_script_test.sh", "001_script_test.sh"}
+	if !reflect.DeepEqual(testScripts, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
+func TestGetTestScripts_IncludeFilters(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder1")
+	testRoot, testScripts, err := getTestScripts([]string{testFolder}, "000", defaultExclude)
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if testFolder != testRoot {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+	expected := []string{"000_script_test.sh"}
+	if !reflect.DeepEqual(testScripts, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
+func TestGetTestScripts_ExcludeFilters(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder1")
+	testRoot, testScripts, err := getTestScripts([]string{testFolder}, defaultInclude, "001")
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if testFolder != testRoot {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+	expected := []string{"000_script_test.sh"}
+	if !reflect.DeepEqual(testScripts, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
+func TestGetTestScripts_NestedDirectories(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder2")
+	testRoot, testScripts, err := getTestScripts([]string{testFolder}, defaultInclude, defaultExclude)
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if testFolder != testRoot {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+	expected := []string{"nested_directory/test_file_test.sh"}
+	if !reflect.DeepEqual(testScripts, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
+func TestGetTestScripts_OnlyOneFile(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/success")
+	testPath := filepath.Join(testFolder, "hello_world_test.sh")
+	testRoot, testScripts, err := getTestScripts([]string{testPath}, defaultInclude, defaultExclude)
+	if err != nil {
+		t.Fatalf("Error getting test script: %s", err)
+	}
+	if testRoot != testFolder {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+	expected := []string{"hello_world_test.sh"}
+	if !reflect.DeepEqual(testScripts, expected) {
+		t.Fatalf("Expected: %v\nHave:      %v\n", expected, testScripts)
+	}
+}
+
+func TestGetTestScripts_NotIncludedExplicit(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder1")
+	testFiles := []string{
+		filepath.Join(testFolder, "000_script_test.sh"),
+		filepath.Join(testFolder, "001_script_test.sh"),
+	}
+	testRoot, testScripts, err := getTestScripts(testFiles, "000", defaultExclude)
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if testFolder != testRoot {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+	expected := []string{"000_script_test.sh"}
+	if !reflect.DeepEqual(testScripts, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
+func TestGetTestScripts_OnlyOneResult(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder1")
+	testFiles := []string{
+		filepath.Join(testFolder, "000_script_test.sh"),
+		filepath.Join(testFolder, "001_script_test.sh"),
+	}
+	testRoot, testScripts, err := getTestScripts(testFiles, defaultInclude, "001")
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if testFolder != testRoot {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+	expected := []string{"000_script_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
 		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
 	}
 }
 
 func TestRunSingleTestSuccess(t *testing.T) {
+	t.Parallel()
+
 	testFolder, _ := filepath.Abs("../testdata/success")
-	testResult := runSingleTest("hello_world.sh", testFolder, defaultTimeout)
+	testResult := runSingleTest("hello_world_test.sh", testFolder, defaultTimeout)
 	expected := lib.TestResult{
-		TestFile: "hello_world.sh",
+		TestFile: "hello_world_test.sh",
 		Success:  true,
 		ExitCode: 0,
 		Output:   "Hello World!\n",
@@ -63,6 +189,8 @@ func TestRunSingleTestSuccess(t *testing.T) {
 }
 
 func TestRunSingleTestFailure(t *testing.T) {
+	t.Parallel()
+
 	testFolder, _ := filepath.Abs("../testdata/failure")
 	testResult := runSingleTest("failure_test.sh", testFolder, defaultTimeout)
 	expected := lib.TestResult{
@@ -77,11 +205,13 @@ func TestRunSingleTestFailure(t *testing.T) {
 }
 
 func TestRunSingleTestTimeout(t *testing.T) {
+	t.Parallel()
+
 	testFolder, _ := filepath.Abs("../testdata")
-	testResult := runSingleTest("timeout.sh", testFolder, 1*time.Second)
+	testResult := runSingleTest("timeout_test.sh", testFolder, 1*time.Second)
 	expectedOutput := "Stuck in an infinite loop!\nStuck in an infinite loop!\nStuck in an infinite loop!\nKilled by testbrain: Timed out after 1s"
 	expected := lib.TestResult{
-		TestFile: "timeout.sh",
+		TestFile: "timeout_test.sh",
 		Success:  false,
 		ExitCode: -1,
 		Output:   expectedOutput,
@@ -159,7 +289,7 @@ func TestOutputResultsJSON(t *testing.T) {
 
 func TestRunCommandSuccess(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/success")
-	err := runCommand(testFolder, defaultTimeout, true, false)
+	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false)
 	if err != nil {
 		t.Fatalf("Didn't expect an error, got '%s'", err)
 	}
@@ -167,7 +297,7 @@ func TestRunCommandSuccess(t *testing.T) {
 
 func TestRunCommandFailure(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/failure")
-	err := runCommand(testFolder, defaultTimeout, true, false)
+	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false)
 	if err == nil {
 		t.Fatal("Expected to get an error, got 'nil'")
 	}

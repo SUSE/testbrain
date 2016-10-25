@@ -4,14 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
-	"path"
-	"strings"
+	"path/filepath"
+	"regexp"
+	"sync"
 	"syscall"
 	"time"
 
-	"github.com/hpcloud/termui"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -20,40 +20,67 @@ import (
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
-	Use:   "run",
+	Use:   "run [flags] [files...]",
 	Short: "Runs all tests.",
-	Long: `Runs all bash tests in the designated test folder,
-gathering results and outputs and summarizing it.`,
+	Long: `Runs all bash tests given, gathering results and outputs
+and summarizing it. If no files are given, the current
+working directory is assumed.  Any directories will be
+walked recursively.`,
 	RunE: runCommandWithViperArgs,
 }
 
 func init() {
 	RootCmd.AddCommand(runCmd)
-	runCmd.PersistentFlags().String("testfolder", "tests", "Folder containing the test files to run")
 	runCmd.PersistentFlags().Int("timeout", 300, "Timeout (in seconds) for each individual test")
 	runCmd.PersistentFlags().Bool("json", false, "Output in JSON format")
 	runCmd.PersistentFlags().BoolP("verbose", "v", false, "Output the progress of running tests")
+	runCmd.PersistentFlags().String("include", "_test\\.sh$", "Regular expression of subset of tests to run")
+	runCmd.PersistentFlags().String("exclude", "^$", "Regular expression of subset of tests to not run, applied after --include")
+	runCmd.PersistentFlags().BoolP("dry-run", "n", false, "Do not actually run the tests")
 
 	viper.BindPFlags(runCmd.PersistentFlags())
 }
 
 func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
-	flagTestFolder := viper.GetString("testfolder")
 	timeoutInSeconds := viper.GetInt("timeout")
 	flagJSONOutput := viper.GetBool("json")
 	flagVerbose := viper.GetBool("verbose")
 	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
-	return runCommand(flagTestFolder, flagTimeout, flagJSONOutput, flagVerbose)
+	flagInclude := viper.GetString("include")
+	flagExclude := viper.GetString("exclude")
+	flagDryRun := viper.GetBool("dry-run")
+	if len(args) == 0 {
+		// No args given, current working directory is assumed
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		args = []string{cwd}
+	}
+	return runCommand(args, flagInclude, flagExclude, flagTimeout, flagJSONOutput, flagVerbose, flagDryRun)
 }
 
-func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbose bool) error {
-	testFiles := getTestScripts(testFolder)
+func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.Duration, jsonOutput, verbose, dryRun bool) error {
+	testRoot, testFiles, err := getTestScripts(testFolders, includeRe, excludeRe)
+	if err != nil {
+		return err
+	}
 	if !jsonOutput {
 		ui.Printf("Found %d test files\n", len(testFiles))
 	}
+	if dryRun {
+		if !jsonOutput {
+			ui.Printf("Test root: %s\n", testRoot)
+			ui.Printf("Test files:\n")
+			for _, testFile := range testFiles {
+				ui.Printf("\t%s\n", testFile)
+			}
+		}
+		return nil
+	}
 
 	outputIndividualResults := !jsonOutput && verbose
-	testResults := runAllTests(testFiles, testFolder, timeout, outputIndividualResults)
+	testResults := runAllTests(testFiles, testRoot, timeout, outputIndividualResults)
 
 	failedTestResults := getFailedTestResults(testResults)
 	if jsonOutput {
@@ -67,19 +94,95 @@ func runCommand(testFolder string, timeout time.Duration, jsonOutput bool, verbo
 	return fmt.Errorf("%d tests failed", len(failedTestResults))
 }
 
-func getTestScripts(testFolder string) []string {
-	fileList, err := ioutil.ReadDir(testFolder)
+func getTestScripts(testFolders []string, include, exclude string) (string, []string, error) {
+	includeRe, err := regexp.Compile(include)
 	if err != nil {
-		redBold.Println("Could not open test folder: " + testFolder)
-		termui.PrintAndExit(ui, err)
+		return "", nil, fmt.Errorf("Error parsing files to include: %s", err)
 	}
-	var testFileList []string
-	for _, file := range fileList {
-		if strings.HasSuffix(file.Name(), ".sh") {
-			testFileList = append(testFileList, file.Name())
+	excludeRe, err := regexp.Compile(exclude)
+	if err != nil {
+		return "", nil, fmt.Errorf("Error parsing files to exclude: %s", err)
+	}
+
+	var foundTests []string
+	for _, testFolderOriginal := range testFolders {
+		testFolder, err := filepath.Abs(testFolderOriginal)
+		if err != nil {
+			return "", nil, fmt.Errorf("Error making %s absolute", testFolderOriginal)
+		}
+		info, err := os.Stat(testFolder)
+		if err != nil {
+			return "", nil, fmt.Errorf("Error reading test file %s: %s", testFolder, err)
+		}
+		if !info.IsDir() {
+			// This is an individual test
+			if !includeRe.MatchString(testFolder) {
+				continue
+			}
+			if excludeRe.MatchString(testFolder) {
+				continue
+			}
+			foundTests = append(foundTests, testFolder)
+			continue
+		}
+		err = filepath.Walk(testFolder, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				return nil
+			}
+			if !includeRe.MatchString(path) {
+				return nil
+			}
+			if excludeRe.MatchString(path) {
+				return nil
+			}
+			foundTests = append(foundTests, path)
+			return nil
+		})
+		if err != nil {
+			return "", nil, err
 		}
 	}
-	return testFileList
+
+	var commonPrefix string
+	if len(testFolders) > 1 {
+		if len(foundTests) > 1 {
+			commonPrefix, err = lib.CommonPathPrefix(foundTests)
+			if err != nil {
+				return "", nil, fmt.Errorf("Error getting common prefix for paths: %s", err)
+			}
+		} else {
+			// Only one test found of many specified; use its parent as the prefix
+			// Otherwise CommonPathPrefix() would give a silly result
+			commonPrefix = filepath.Dir(foundTests[0])
+		}
+	} else {
+		// Only one test folder given; use it as the prefix; unless it's a file,
+		// then in which case use its directory
+		testFolder, err := filepath.Abs(testFolders[0])
+		if err != nil {
+			return "", nil, fmt.Errorf("Error finding absolute path of %s: %s", testFolders[0], err)
+		}
+		info, err := os.Stat(testFolder)
+		if err != nil {
+			return "", nil, fmt.Errorf("Error stating %s: %s", testFolder, err)
+		}
+		if info.IsDir() {
+			commonPrefix = testFolder
+		} else {
+			commonPrefix = filepath.Dir(testFolder)
+		}
+	}
+	for i, path := range foundTests {
+		relPath, err := filepath.Rel(commonPrefix, path)
+		if err != nil {
+			return "", nil, fmt.Errorf("Error finding relative path of %s from %s: %s", path, commonPrefix, err)
+		}
+		foundTests[i] = relPath
+	}
+	return commonPrefix, foundTests, nil
 }
 
 func runAllTests(testFiles []string, testFolder string,
@@ -97,7 +200,7 @@ func runAllTests(testFiles []string, testFolder string,
 }
 
 func runSingleTest(testFile string, testFolder string, timeout time.Duration) lib.TestResult {
-	command := exec.Command(path.Join(testFolder, testFile))
+	command := exec.Command(filepath.Join(testFolder, testFile))
 	commandOutput := &bytes.Buffer{}
 	command.Stdout = commandOutput
 	command.Stderr = commandOutput
@@ -105,12 +208,21 @@ func runSingleTest(testFile string, testFolder string, timeout time.Duration) li
 	if err != nil {
 		return lib.ErrorTestResult(testFile, err)
 	}
+	var timeoutLock sync.Mutex
+	timeoutReached := false
 	timer := time.AfterFunc(timeout, func() {
 		command.Process.Kill()
-		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", timeout))
+		timeoutLock.Lock()
+		defer timeoutLock.Unlock()
+		timeoutReached = true
 	})
 	err = command.Wait()
 	timer.Stop()
+	timeoutLock.Lock()
+	if timeoutReached {
+		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", timeout))
+	}
+	timeoutLock.Unlock()
 
 	exitCode, err := getErrorCode(err, command)
 	if err != nil {
