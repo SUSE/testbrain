@@ -146,9 +146,15 @@ func getTestScripts(testFolders []string, include, exclude string) (string, []st
 
 	var commonPrefix string
 	if len(testFolders) > 1 {
-		commonPrefix, err = lib.CommonPathPrefix(foundTests)
-		if err != nil {
-			return "", nil, fmt.Errorf("Error getting common prefix for paths: %s", err)
+		if len(foundTests) > 1 {
+			commonPrefix, err = lib.CommonPathPrefix(foundTests)
+			if err != nil {
+				return "", nil, fmt.Errorf("Error getting common prefix for paths: %s", err)
+			}
+		} else {
+			// Only one test found of many specified; use its parent as the prefix
+			// Otherwise CommonPathPrefix() would give a silly result
+			commonPrefix = filepath.Dir(foundTests[0])
 		}
 	} else {
 		// Only one test folder given; use it as the prefix; unless it's a file,

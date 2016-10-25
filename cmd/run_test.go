@@ -130,6 +130,27 @@ func TestGetTestScripts_OnlyOneFile(t *testing.T) {
 	}
 }
 
+func TestGetTestScripts_OnlyOneResult(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder1")
+	testFiles := []string{
+		filepath.Join(testFolder, "000_script_test.sh"),
+		filepath.Join(testFolder, "001_script_test.sh"),
+	}
+	testRoot, testScripts, err := getTestScripts(testFiles, defaultInclude, "001")
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if testFolder != testRoot {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+	expected := []string{"000_script_test.sh"}
+	if !reflect.DeepEqual(testScripts, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
 func TestRunSingleTestSuccess(t *testing.T) {
 	t.Parallel()
 
