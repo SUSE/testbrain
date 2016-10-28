@@ -7,6 +7,7 @@ Currently, only one command is available:
 ### `testbrain run`
 Runs all tests in the test folder.
 
+
 Flags:
 ```
       --json                Output in JSON format
