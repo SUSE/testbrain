@@ -3,11 +3,14 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"sync"
 	"syscall"
 	"time"
@@ -36,6 +39,8 @@ func init() {
 	runCmd.PersistentFlags().BoolP("verbose", "v", false, "Output the progress of running tests")
 	runCmd.PersistentFlags().String("include", "_test\\.sh$", "Regular expression of subset of tests to run")
 	runCmd.PersistentFlags().String("exclude", "^$", "Regular expression of subset of tests to not run, applied after --include")
+	runCmd.PersistentFlags().Bool("in-order", false, "Do not randomize test order")
+	runCmd.PersistentFlags().Int64("seed", -1, "Random seed used to determine the order of tests")
 	runCmd.PersistentFlags().BoolP("dry-run", "n", false, "Do not actually run the tests")
 
 	viper.BindPFlags(runCmd.PersistentFlags())
@@ -48,7 +53,17 @@ func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
 	flagInclude := viper.GetString("include")
 	flagExclude := viper.GetString("exclude")
+	flagInOrder := viper.GetBool("in-order")
+	flagSeed := viper.GetInt64("seed")
 	flagDryRun := viper.GetBool("dry-run")
+
+	if flagInOrder && flagSeed != -1 {
+		return errors.New("Cannot set --in-order and --seed at the same time")
+	}
+	if flagSeed == -1 {
+		flagSeed = time.Now().UnixNano()
+	}
+
 	if len(args) == 0 {
 		// No args given, current working directory is assumed
 		cwd, err := os.Getwd()
@@ -57,11 +72,17 @@ func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 		}
 		args = []string{cwd}
 	}
-	return runCommand(args, flagInclude, flagExclude, flagTimeout, flagJSONOutput, flagVerbose, flagDryRun)
+	return runCommand(args, flagInclude, flagExclude,
+		flagTimeout, flagJSONOutput, flagVerbose,
+		flagInOrder, flagSeed, flagDryRun)
 }
 
-func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.Duration, jsonOutput, verbose, dryRun bool) error {
-	testRoot, testFiles, err := getTestScripts(testFolders, includeRe, excludeRe)
+func runCommand(testFolders []string, includeRe, excludeRe string,
+	timeout time.Duration,
+	jsonOutput, verbose,
+	inOrder bool, randomSeed int64,
+	dryRun bool) error {
+	testRoot, testFiles, err := getTestScriptsWithOrder(testFolders, includeRe, excludeRe, inOrder, randomSeed)
 	if err != nil {
 		return err
 	}
@@ -84,14 +105,26 @@ func runCommand(testFolders []string, includeRe, excludeRe string, timeout time.
 
 	failedTestResults := getFailedTestResults(testResults)
 	if jsonOutput {
-		outputResultsJSON(failedTestResults, len(testResults))
+		outputResultsJSON(failedTestResults, len(testResults), inOrder, randomSeed)
 	} else {
-		outputResults(failedTestResults, len(testResults))
+		outputResults(failedTestResults, len(testResults), inOrder, randomSeed)
 	}
 	if len(failedTestResults) == 0 {
 		return nil
 	}
 	return fmt.Errorf("%d tests failed", len(failedTestResults))
+}
+
+func getTestScriptsWithOrder(testFolders []string, include, exclude string, inOrder bool, randomSeed int64) (string, []string, error) {
+	testRoot, testFiles, err := getTestScripts(testFolders, include, exclude)
+	if err != nil {
+		return "", nil, err
+	}
+	sort.Strings(testFiles)
+	if !inOrder {
+		shuffleOrder(testFiles, randomSeed)
+	}
+	return testRoot, testFiles, err
 }
 
 func getTestScripts(testFolders []string, include, exclude string) (string, []string, error) {
@@ -183,6 +216,15 @@ func getTestScripts(testFolders []string, include, exclude string) (string, []st
 		foundTests[i] = relPath
 	}
 	return commonPrefix, foundTests, nil
+}
+
+func shuffleOrder(list []string, randomSeed int64) {
+	rand.Seed(randomSeed)
+	// See https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm
+	for i := len(list) - 1; i >= 1; i-- {
+		source := rand.Intn(i + 1)
+		list[i], list[source] = list[source], list[i]
+	}
 }
 
 func runAllTests(testFiles []string, testFolder string,
@@ -285,7 +327,7 @@ func getFailedTestResults(testResults []lib.TestResult) []lib.TestResult {
 	return failedTestResults
 }
 
-func outputResults(failedTestResults []lib.TestResult, nbTestsRan int) {
+func outputResults(failedTestResults []lib.TestResult, nbTestsRan int, inOrder bool, randomSeed int64) {
 	for _, failedResult := range failedTestResults {
 		redBold.Printf("%s: Failed with exit code %d\n", failedResult.TestFile, failedResult.ExitCode)
 	}
@@ -296,17 +338,27 @@ func outputResults(failedTestResults []lib.TestResult, nbTestsRan int) {
 	} else {
 		greenBold.Println(summaryString)
 	}
+	if !inOrder {
+		ui.Printf("Seed used: %d\n", randomSeed)
+	}
 }
 
-func outputResultsJSON(failedTestResults []lib.TestResult, nbTestsRan int) {
+func outputResultsJSON(failedTestResults []lib.TestResult, nbTestsRan int, inOrder bool, randomSeed int64) {
+	if inOrder {
+		randomSeed = -1
+	}
 	// This is the only place where we need this struct, so anonymous struct seems appropriate
 	jsonOutputStruct := struct {
 		Passed     int              `json:"passed"`
 		Failed     int              `json:"failed"`
+		Seed       int64            `json:"seed"`
+		InOrder    bool             `json:"inOrder"`
 		FailedList []lib.TestResult `json:"failedList"`
 	}{
 		Passed:     nbTestsRan - len(failedTestResults),
 		Failed:     len(failedTestResults),
+		Seed:       randomSeed,
+		InOrder:    inOrder,
 		FailedList: failedTestResults,
 	}
 	jsonOutput, _ := json.Marshal(jsonOutputStruct)
