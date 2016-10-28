@@ -1,4 +1,4 @@
-# testbrain: HCF Acceptance Test Brain
+# testbrain: HCF Acceptance Test Brain!
 
 Simple test runner. Runs all bash tests in the designated test folder, gathering results and outputs and summarizing it.
 
@@ -6,6 +6,7 @@ Currently, only one command is available:
 
 ### `testbrain run`
 Runs all tests in the test folder.
+
 
 Flags:
 ```
