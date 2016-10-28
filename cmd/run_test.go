@@ -179,12 +179,29 @@ func TestGetTestScriptsWithOrder_SameSeedSameOrder(t *testing.T) {
 
 	testFolder, _ := filepath.Abs("../testdata/testfolder3-many-tests")
 	_, testScripts1, err := getTestScriptsWithOrder([]string{testFolder}, defaultInclude, defaultExclude, false, defaultSeed)
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
 	_, testScripts2, err := getTestScriptsWithOrder([]string{testFolder}, defaultInclude, defaultExclude, false, defaultSeed)
 	if err != nil {
 		t.Fatalf("Error getting test scripts: %s", err)
 	}
 	if !reflect.DeepEqual(testScripts1, testScripts2) {
 		t.Fatalf("Different results using the seed %d: %v and %v\n", defaultSeed, testScripts1, testScripts2)
+	}
+}
+
+func TestGetTestScriptsWithOrder_SpecificSeed(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder3-many-tests")
+	_, testScripts, err := getTestScriptsWithOrder([]string{testFolder}, defaultInclude, defaultExclude, false, 42)
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	expected := []string{"001_script_test.sh", "004_script_test.sh", "002_script_test.sh", "003_script_test.sh", "000_script_test.sh"}
+	if !reflect.DeepEqual(expected, testScripts) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
 	}
 }
 
@@ -329,7 +346,9 @@ func TestOutputResultsJSON(t *testing.T) {
 	_, out := setupTestUI()
 	failedTestResults := setupFailedTestResults()
 	outputResultsJSON(failedTestResults, 5, false, 42)
-	expected := `{"passed":3,"failed":2,"seed":42,"failedList":[{"filename":"testfile1","success":false,"exitcode":1,"output":"It didn't work!"},{"filename":"testfile2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
+	expected := `{"passed":3,"failed":2,"seed":42,"inOrder":false,"failedList":[` +
+		`{"filename":"testfile1","success":false,"exitcode":1,"output":"It didn't work!"},` +
+		`{"filename":"testfile2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
 	}

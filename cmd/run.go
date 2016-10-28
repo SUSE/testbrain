@@ -3,12 +3,14 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"sync"
 	"syscall"
 	"time"
@@ -38,7 +40,7 @@ func init() {
 	runCmd.PersistentFlags().String("include", "_test\\.sh$", "Regular expression of subset of tests to run")
 	runCmd.PersistentFlags().String("exclude", "^$", "Regular expression of subset of tests to not run, applied after --include")
 	runCmd.PersistentFlags().Bool("in-order", false, "Do not randomize test order")
-	runCmd.PersistentFlags().Int64("seed", time.Now().UnixNano(), "Random seed used to determine the order of tests")
+	runCmd.PersistentFlags().Int64("seed", -1, "Random seed used to determine the order of tests")
 	runCmd.PersistentFlags().BoolP("dry-run", "n", false, "Do not actually run the tests")
 
 	viper.BindPFlags(runCmd.PersistentFlags())
@@ -54,6 +56,14 @@ func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 	flagInOrder := viper.GetBool("in-order")
 	flagSeed := viper.GetInt64("seed")
 	flagDryRun := viper.GetBool("dry-run")
+
+	if flagInOrder && flagSeed != -1 {
+		return errors.New("Cannot set --in-order and --seed at the same time")
+	}
+	if flagSeed == -1 {
+		flagSeed = time.Now().UnixNano()
+	}
+
 	if len(args) == 0 {
 		// No args given, current working directory is assumed
 		cwd, err := os.Getwd()
@@ -110,6 +120,7 @@ func getTestScriptsWithOrder(testFolders []string, include, exclude string, inOr
 	if err != nil {
 		return "", nil, err
 	}
+	sort.Strings(testFiles)
 	if !inOrder {
 		shuffleOrder(testFiles, randomSeed)
 	}
@@ -341,11 +352,13 @@ func outputResultsJSON(failedTestResults []lib.TestResult, nbTestsRan int, inOrd
 		Passed     int              `json:"passed"`
 		Failed     int              `json:"failed"`
 		Seed       int64            `json:"seed"`
+		InOrder    bool             `json:"inOrder"`
 		FailedList []lib.TestResult `json:"failedList"`
 	}{
 		Passed:     nbTestsRan - len(failedTestResults),
 		Failed:     len(failedTestResults),
 		Seed:       randomSeed,
+		InOrder:    inOrder,
 		FailedList: failedTestResults,
 	}
 	jsonOutput, _ := json.Marshal(jsonOutputStruct)
