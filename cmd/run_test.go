@@ -174,12 +174,43 @@ func TestGetTestScripts_OnlyOneResult(t *testing.T) {
 	}
 }
 
+func TestGetTestScriptsWithOrder_SameSeedSameOrder(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder3-many-tests")
+	_, testScripts1, err := getTestScriptsWithOrder([]string{testFolder}, defaultInclude, defaultExclude, false, defaultSeed)
+	_, testScripts2, err := getTestScriptsWithOrder([]string{testFolder}, defaultInclude, defaultExclude, false, defaultSeed)
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if !reflect.DeepEqual(testScripts1, testScripts2) {
+		t.Fatalf("Different results using the seed %d: %v and %v\n", defaultSeed, testScripts1, testScripts2)
+	}
+}
+
+func TestGetTestScriptsWithOrder_InOrder(t *testing.T) {
+	t.Parallel()
+
+	testFolder, _ := filepath.Abs("../testdata/testfolder3-many-tests")
+	_, testScripts, err := getTestScriptsWithOrder([]string{testFolder}, defaultInclude, defaultExclude, true, defaultSeed)
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	expected := []string{"000_script_test.sh", "001_script_test.sh", "002_script_test.sh", "003_script_test.sh", "004_script_test.sh"}
+	if !reflect.DeepEqual(expected, testScripts) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
 func TestShuffleOrder(t *testing.T) {
-	testFiles := []string{"0", "1", "2", "3", "4", "5", "6"}
-	result := shuffleOrder(testFiles, 424242)
-	expected := []string{"1", "3", "5", "2", "6", "0", "4"}
-	if !reflect.DeepEqual(result, expected) {
-		t.Fatalf("Expected: %v\nHave:     %v\n", expected, result)
+	t.Parallel()
+
+	testFiles := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}
+	originalOrder := make([]string, len(testFiles))
+	copy(originalOrder, testFiles)
+	shuffleOrder(testFiles, defaultSeed)
+	if reflect.DeepEqual(testFiles, originalOrder) {
+		t.Fatalf("Shuffle order did not change: %v\n", testFiles)
 	}
 }
 

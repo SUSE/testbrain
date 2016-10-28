@@ -72,12 +72,9 @@ func runCommand(testFolders []string, includeRe, excludeRe string,
 	jsonOutput, verbose,
 	inOrder bool, randomSeed int64,
 	dryRun bool) error {
-	testRoot, testFiles, err := getTestScripts(testFolders, includeRe, excludeRe)
+	testRoot, testFiles, err := getTestScriptsWithOrder(testFolders, includeRe, excludeRe, inOrder, randomSeed)
 	if err != nil {
 		return err
-	}
-	if !inOrder {
-		testFiles = shuffleOrder(testFiles, randomSeed)
 	}
 	if !jsonOutput {
 		ui.Printf("Found %d test files\n", len(testFiles))
@@ -106,6 +103,17 @@ func runCommand(testFolders []string, includeRe, excludeRe string,
 		return nil
 	}
 	return fmt.Errorf("%d tests failed", len(failedTestResults))
+}
+
+func getTestScriptsWithOrder(testFolders []string, include, exclude string, inOrder bool, randomSeed int64) (string, []string, error) {
+	testRoot, testFiles, err := getTestScripts(testFolders, include, exclude)
+	if err != nil {
+		return "", nil, err
+	}
+	if !inOrder {
+		shuffleOrder(testFiles, randomSeed)
+	}
+	return testRoot, testFiles, err
 }
 
 func getTestScripts(testFolders []string, include, exclude string) (string, []string, error) {
@@ -199,14 +207,13 @@ func getTestScripts(testFolders []string, include, exclude string) (string, []st
 	return commonPrefix, foundTests, nil
 }
 
-func shuffleOrder(list []string, randomSeed int64) []string {
+func shuffleOrder(list []string, randomSeed int64) {
 	rand.Seed(randomSeed)
 	// See https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm
 	for i := len(list) - 1; i >= 1; i-- {
 		source := rand.Intn(i + 1)
 		list[i], list[source] = list[source], list[i]
 	}
-	return list
 }
 
 func runAllTests(testFiles []string, testFolder string,
