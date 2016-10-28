@@ -17,6 +17,7 @@ var (
 	defaultTimeout = 300 * time.Second
 	defaultInclude = "_test\\.sh$"
 	defaultExclude = "^$"
+	defaultSeed    = time.Now().UnixNano()
 
 	redBoldString = color.New(color.FgRed, color.Bold).SprintfFunc()
 )
@@ -173,6 +174,15 @@ func TestGetTestScripts_OnlyOneResult(t *testing.T) {
 	}
 }
 
+func TestShuffleOrder(t *testing.T) {
+	testFiles := []string{"0", "1", "2", "3", "4", "5", "6"}
+	result := shuffleOrder(testFiles, 424242)
+	expected := []string{"1", "3", "5", "2", "6", "0", "4"}
+	if !reflect.DeepEqual(result, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, result)
+	}
+}
+
 func TestRunSingleTestSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -228,10 +238,11 @@ func TestRunSingleTestTimeout(t *testing.T) {
 func TestOutputResults(t *testing.T) {
 	_, out := setupTestUI()
 	failedTestResults := setupFailedTestResults()
-	outputResults(failedTestResults, 5, 42)
+	outputResults(failedTestResults, 5, false, 42)
 	expected := redBoldString("testfile1: Failed with exit code 1\n") +
 		redBoldString("testfile2: Failed with exit code 2\n") +
-		redBoldString("\nTests complete: 3 Passed, 2 Failed\n")
+		redBoldString("\nTests complete: 3 Passed, 2 Failed\n") +
+		"Seed used: 42\n"
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
 	}
@@ -286,8 +297,8 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 func TestOutputResultsJSON(t *testing.T) {
 	_, out := setupTestUI()
 	failedTestResults := setupFailedTestResults()
-	outputResultsJSON(failedTestResults, 5, 42)
-	expected := `{"passed":3,"failed":2,"failedList":[{"filename":"testfile1","success":false,"exitcode":1,"output":"It didn't work!"},{"filename":"testfile2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
+	outputResultsJSON(failedTestResults, 5, false, 42)
+	expected := `{"passed":3,"failed":2,"seed":42,"failedList":[{"filename":"testfile1","success":false,"exitcode":1,"output":"It didn't work!"},{"filename":"testfile2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
 	}
@@ -295,7 +306,7 @@ func TestOutputResultsJSON(t *testing.T) {
 
 func TestRunCommandSuccess(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/success")
-	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed)
+	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed, false)
 	if err != nil {
 		t.Fatalf("Didn't expect an error, got '%s'", err)
 	}
@@ -303,7 +314,7 @@ func TestRunCommandSuccess(t *testing.T) {
 
 func TestRunCommandFailure(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/failure")
-	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed)
+	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed, false)
 	if err == nil {
 		t.Fatal("Expected to get an error, got 'nil'")
 	}
