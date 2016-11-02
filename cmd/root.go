@@ -4,26 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/fatih/color"
-	"github.com/hpcloud/termui"
-	"github.com/hpcloud/termui/termpassword"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-
-	"github.com/hpcloud/testbrain/lib"
 )
 
 var cfgFile string
 var version string
-
-// Creating printers globally to simplify printing
-var (
-	ui        *termui.UI
-	green     = color.New(color.FgGreen)
-	greenBold = color.New(color.FgGreen, color.Bold)
-	red       = color.New(color.FgRed)
-	redBold   = color.New(color.FgRed, color.Bold)
-)
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
@@ -45,9 +31,6 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.test-brain.yaml)")
-	ui = termui.New(os.Stdin, lib.Writer, termpassword.NewReader())
-	// This lets us use the standard Print functions of the color library while printing to the UI
-	color.Output = ui
 }
 
 // initConfig reads in config file and ENV variables if set.

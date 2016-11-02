@@ -1,4 +1,4 @@
-package cmd
+package lib
 
 import (
 	"bytes"
@@ -9,8 +9,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/hpcloud/termui"
-
-	"github.com/hpcloud/testbrain/lib"
 )
 
 var (
@@ -24,26 +22,26 @@ var (
 
 func setupTestUI() (*bytes.Buffer, *bytes.Buffer) {
 	in, out := &bytes.Buffer{}, &bytes.Buffer{}
-	ui = termui.New(in, out, nil)
-	color.Output = ui
+	UI = termui.New(in, out, nil)
+	color.Output = UI
 	color.NoColor = false
 	return in, out
 }
 
-func setupFailedTestResults() []lib.TestResult {
-	failedTestResult1 := lib.TestResult{
+func setupFailedTestResults() []TestResult {
+	failedTestResult1 := TestResult{
 		TestFile: "testfile1",
 		Success:  false,
 		ExitCode: 1,
 		Output:   "It didn't work!",
 	}
-	failedTestResult2 := lib.TestResult{
+	failedTestResult2 := TestResult{
 		TestFile: "testfile2",
 		Success:  false,
 		ExitCode: 2,
 		Output:   "It didn't work again!",
 	}
-	return []lib.TestResult{failedTestResult1, failedTestResult2}
+	return []TestResult{failedTestResult1, failedTestResult2}
 }
 
 func TestGetTestScripts(t *testing.T) {
@@ -236,7 +234,7 @@ func TestRunSingleTestSuccess(t *testing.T) {
 
 	testFolder, _ := filepath.Abs("../testdata/success")
 	testResult := runSingleTest("hello_world_test.sh", testFolder, defaultTimeout)
-	expected := lib.TestResult{
+	expected := TestResult{
 		TestFile: "hello_world_test.sh",
 		Success:  true,
 		ExitCode: 0,
@@ -252,7 +250,7 @@ func TestRunSingleTestFailure(t *testing.T) {
 
 	testFolder, _ := filepath.Abs("../testdata/failure")
 	testResult := runSingleTest("failure_test.sh", testFolder, defaultTimeout)
-	expected := lib.TestResult{
+	expected := TestResult{
 		TestFile: "failure_test.sh",
 		Success:  false,
 		ExitCode: 42,
@@ -272,7 +270,7 @@ func TestRunSingleTestTimeout(t *testing.T) {
 		"Stuck in an infinite loop!\n" +
 		"Stuck in an infinite loop!\n" +
 		"Killed by testbrain: Timed out after 1s"
-	expected := lib.TestResult{
+	expected := TestResult{
 		TestFile: "timeout_test.sh",
 		Success:  false,
 		ExitCode: -1,
@@ -330,7 +328,7 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 
 	// When we move to go1.7 we can do subtests
 	for _, sample := range testData {
-		result := lib.TestResult{
+		result := TestResult{
 			Success: sample.success,
 			Output:  "test output",
 		}
@@ -356,7 +354,7 @@ func TestOutputResultsJSON(t *testing.T) {
 
 func TestRunCommandSuccess(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/success")
-	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed, false)
+	err := RunCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed, false)
 	if err != nil {
 		t.Fatalf("Didn't expect an error, got '%s'", err)
 	}
@@ -364,7 +362,7 @@ func TestRunCommandSuccess(t *testing.T) {
 
 func TestRunCommandFailure(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/failure")
-	err := runCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed, false)
+	err := RunCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed, false)
 	if err == nil {
 		t.Fatal("Expected to get an error, got 'nil'")
 	}
