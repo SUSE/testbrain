@@ -15,10 +15,19 @@ import (
 	"time"
 )
 
-func RunCommand(testFolders []string, includeRe, excludeRe string,
+type Runner struct {
+	verbose bool
+}
+
+func NewRunner(flagVerbose bool) *Runner {
+	r := new(Runner)
+	r.verbose = flagVerbose
+	return r
+}
+
+func (r Runner) RunCommand(testFolders []string, includeRe, excludeRe string,
 	timeout time.Duration,
-	jsonOutput, verbose,
-	inOrder bool, randomSeed int64,
+	jsonOutput, inOrder bool, randomSeed int64,
 	dryRun bool) error {
 	testRoot, testFiles, err := getTestScriptsWithOrder(testFolders, includeRe, excludeRe, inOrder, randomSeed)
 	if err != nil {
@@ -38,7 +47,7 @@ func RunCommand(testFolders []string, includeRe, excludeRe string,
 		return nil
 	}
 
-	outputIndividualResults := !jsonOutput && verbose
+	outputIndividualResults := !jsonOutput && r.verbose
 	testResults := runAllTests(testFiles, testRoot, timeout, outputIndividualResults)
 
 	failedTestResults := getFailedTestResults(testResults)

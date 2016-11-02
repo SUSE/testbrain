@@ -354,7 +354,9 @@ func TestOutputResultsJSON(t *testing.T) {
 
 func TestRunCommandSuccess(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/success")
-	err := RunCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed, false)
+	runner := NewRunner(false)
+
+	err := runner.RunCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, defaultSeed, false)
 	if err != nil {
 		t.Fatalf("Didn't expect an error, got '%s'", err)
 	}
@@ -362,7 +364,9 @@ func TestRunCommandSuccess(t *testing.T) {
 
 func TestRunCommandFailure(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/failure")
-	err := RunCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, false, defaultSeed, false)
+	runner := NewRunner(false)
+
+	err := runner.RunCommand([]string{testFolder}, defaultInclude, defaultExclude, defaultTimeout, true, false, defaultSeed, false)
 	if err == nil {
 		t.Fatal("Expected to get an error, got 'nil'")
 	}

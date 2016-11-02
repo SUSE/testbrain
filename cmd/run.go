@@ -35,11 +35,11 @@ func init() {
 	viper.BindPFlags(runCmd.PersistentFlags())
 }
 
-func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
+func runCommandWithViperArgs(_ *cobra.Command, args []string) error {
 	timeoutInSeconds := viper.GetInt("timeout")
+	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
 	flagJSONOutput := viper.GetBool("json")
 	flagVerbose := viper.GetBool("verbose")
-	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
 	flagInclude := viper.GetString("include")
 	flagExclude := viper.GetString("exclude")
 	flagInOrder := viper.GetBool("in-order")
@@ -61,7 +61,9 @@ func runCommandWithViperArgs(cmd *cobra.Command, args []string) error {
 		}
 		args = []string{cwd}
 	}
-	return lib.RunCommand(args, flagInclude, flagExclude,
-		flagTimeout, flagJSONOutput, flagVerbose,
+	runner := lib.NewRunner(flagVerbose)
+
+	return runner.RunCommand(args, flagInclude, flagExclude,
+		flagTimeout, flagJSONOutput,
 		flagInOrder, flagSeed, flagDryRun)
 }
