@@ -16,6 +16,7 @@ import (
 )
 
 type Runner struct {
+	// Flags
 	testTargets []string
 	includeRe   string
 	excludeRe   string
@@ -25,6 +26,9 @@ type Runner struct {
 	jsonOutput  bool
 	verbose     bool
 	dryRun      bool
+
+	testResults       []TestResult
+	failedTestResults []TestResult
 }
 
 func NewRunner(testFolders []string, flagInclude, flagExclude string, flagTimeout time.Duration,
@@ -43,7 +47,7 @@ func NewRunner(testFolders []string, flagInclude, flagExclude string, flagTimeou
 	return r
 }
 
-func (r Runner) RunCommand() error {
+func (r *Runner) RunCommand() error {
 	testRoot, testFiles, err := r.getTestScriptsWithOrder()
 	if err != nil {
 		return err
@@ -62,21 +66,20 @@ func (r Runner) RunCommand() error {
 		return nil
 	}
 
-	testResults := r.runAllTests(testFiles, testRoot)
-
-	failedTestResults := r.getFailedTestResults(testResults)
+	r.runAllTests(testFiles, testRoot)
+	r.getFailedTestResults()
 	if r.jsonOutput {
-		r.outputResultsJSON(failedTestResults, len(testResults))
+		r.outputResultsJSON()
 	} else {
-		r.outputResults(failedTestResults, len(testResults))
+		r.outputResults()
 	}
-	if len(failedTestResults) == 0 {
+	if len(r.failedTestResults) == 0 {
 		return nil
 	}
-	return fmt.Errorf("%d tests failed", len(failedTestResults))
+	return fmt.Errorf("%d tests failed", len(r.failedTestResults))
 }
 
-func (r Runner) getTestScriptsWithOrder() (string, []string, error) {
+func (r *Runner) getTestScriptsWithOrder() (string, []string, error) {
 	testRoot, testFiles, err := r.getTestScripts()
 	if err != nil {
 		return "", nil, err
@@ -88,7 +91,7 @@ func (r Runner) getTestScriptsWithOrder() (string, []string, error) {
 	return testRoot, testFiles, err
 }
 
-func (r Runner) getTestScripts() (string, []string, error) {
+func (r *Runner) getTestScripts() (string, []string, error) {
 	includeRe, err := regexp.Compile(r.includeRe)
 	if err != nil {
 		return "", nil, fmt.Errorf("Error parsing files to include: %s", err)
@@ -179,7 +182,7 @@ func (r Runner) getTestScripts() (string, []string, error) {
 	return commonPrefix, foundTests, nil
 }
 
-func (r Runner) shuffleOrder(list []string) {
+func (r *Runner) shuffleOrder(list []string) {
 	rand.Seed(r.randomSeed)
 	// See https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm
 	for i := len(list) - 1; i >= 1; i-- {
@@ -188,20 +191,18 @@ func (r Runner) shuffleOrder(list []string) {
 	}
 }
 
-func (r Runner) runAllTests(testFiles []string, testFolder string) []TestResult {
-	var testResults []TestResult
+func (r *Runner) runAllTests(testFiles []string, testFolder string) {
 	for i, testFile := range testFiles {
 		if !r.jsonOutput && r.verbose {
 			UI.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
 		result := r.runSingleTest(testFile, testFolder)
 		r.printVerboseSingleTestResult(result)
-		testResults = append(testResults, result)
+		r.testResults = append(r.testResults, result)
 	}
-	return testResults
 }
 
-func (r Runner) runSingleTest(testFile string, testFolder string) TestResult {
+func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	command := exec.Command(filepath.Join(testFolder, testFile))
 	commandOutput := &bytes.Buffer{}
 	command.Stdout = commandOutput
@@ -239,7 +240,7 @@ func (r Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	}
 }
 
-func (r Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
+func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 	if command.ProcessState.Success() {
 		// Not exactly necessary, since we can check Success(),
 		// but more correct than saying status code is unknown
@@ -266,7 +267,7 @@ func (r Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 	return UnknownExitCode, nil
 }
 
-func (r Runner) printVerboseSingleTestResult(result TestResult) {
+func (r *Runner) printVerboseSingleTestResult(result TestResult) {
 	if !r.jsonOutput && r.verbose {
 		if result.Success {
 			Green.Println("OK")
@@ -277,23 +278,22 @@ func (r Runner) printVerboseSingleTestResult(result TestResult) {
 	}
 }
 
-func (r Runner) getFailedTestResults(testResults []TestResult) []TestResult {
-	failedTestResults := []TestResult{}
-	for _, result := range testResults {
+func (r *Runner) getFailedTestResults() {
+	for _, result := range r.testResults {
 		if !result.Success {
-			failedTestResults = append(failedTestResults, result)
+			r.failedTestResults = append(r.failedTestResults, result)
 		}
 	}
-	return failedTestResults
 }
 
-func (r Runner) outputResults(failedTestResults []TestResult, nbTestsRan int) {
-	for _, failedResult := range failedTestResults {
+func (r *Runner) outputResults() {
+	for _, failedResult := range r.failedTestResults {
 		RedBold.Printf("%s: Failed with exit code %d\n", failedResult.TestFile, failedResult.ExitCode)
 	}
-	nbTestsPassed := nbTestsRan - len(failedTestResults)
-	summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", nbTestsPassed, len(failedTestResults))
-	if len(failedTestResults) > 0 {
+	nbTestsFailed := len(r.failedTestResults)
+	nbTestsPassed := len(r.testResults) - nbTestsFailed
+	summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", nbTestsPassed, nbTestsFailed)
+	if nbTestsFailed > 0 {
 		RedBold.Println(summaryString)
 	} else {
 		GreenBold.Println(summaryString)
@@ -303,11 +303,13 @@ func (r Runner) outputResults(failedTestResults []TestResult, nbTestsRan int) {
 	}
 }
 
-func (r Runner) outputResultsJSON(failedTestResults []TestResult, nbTestsRan int) {
+func (r *Runner) outputResultsJSON() {
 	displayedSeed := r.randomSeed
 	if r.inOrder {
 		displayedSeed = -1
 	}
+	nbTestsFailed := len(r.failedTestResults)
+	nbTestsPassed := len(r.testResults) - nbTestsFailed
 
 	// This is the only place where we need this struct, so anonymous struct seems appropriate
 	jsonOutputStruct := struct {
@@ -317,11 +319,11 @@ func (r Runner) outputResultsJSON(failedTestResults []TestResult, nbTestsRan int
 		InOrder    bool         `json:"inOrder"`
 		FailedList []TestResult `json:"failedList"`
 	}{
-		Passed:     nbTestsRan - len(failedTestResults),
-		Failed:     len(failedTestResults),
+		Passed:     nbTestsPassed,
+		Failed:     nbTestsFailed,
 		Seed:       displayedSeed,
 		InOrder:    r.inOrder,
-		FailedList: failedTestResults,
+		FailedList: r.failedTestResults,
 	}
 	jsonOutput, _ := json.Marshal(jsonOutputStruct)
 	UI.Write(jsonOutput)

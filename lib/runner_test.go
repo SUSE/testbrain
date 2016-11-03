@@ -34,15 +34,35 @@ func setupDefaultRunner() *Runner {
 		false, false, false)
 }
 
+func setupTestResults() []TestResult {
+	return append(setupPassedTestResults(), setupFailedTestResults()...)
+}
+
+func setupPassedTestResults() []TestResult {
+	passedTestResult1 := TestResult{
+		TestFile: "testfile-success-1",
+		Success:  true,
+		ExitCode: 0,
+		Output:   "It worked!",
+	}
+	passedTestResult2 := TestResult{
+		TestFile: "testfile-success-2",
+		Success:  true,
+		ExitCode: 0,
+		Output:   "It worked again!",
+	}
+	return []TestResult{passedTestResult1, passedTestResult2}
+}
+
 func setupFailedTestResults() []TestResult {
 	failedTestResult1 := TestResult{
-		TestFile: "testfile1",
+		TestFile: "testfile-failure-1",
 		Success:  false,
 		ExitCode: 1,
 		Output:   "It didn't work!",
 	}
 	failedTestResult2 := TestResult{
-		TestFile: "testfile2",
+		TestFile: "testfile-failure-2",
 		Success:  false,
 		ExitCode: 2,
 		Output:   "It didn't work again!",
@@ -390,12 +410,13 @@ func TestOutputResults(t *testing.T) {
 	_, out := setupTestUI()
 	r := setupDefaultRunner()
 	r.randomSeed = 42
+	r.testResults = setupTestResults()
+	r.failedTestResults = setupFailedTestResults()
 
-	failedTestResults := setupFailedTestResults()
-	r.outputResults(failedTestResults, 5)
-	expected := redBoldString("testfile1: Failed with exit code 1\n") +
-		redBoldString("testfile2: Failed with exit code 2\n") +
-		redBoldString("\nTests complete: 3 Passed, 2 Failed\n") +
+	r.outputResults()
+	expected := redBoldString("testfile-failure-1: Failed with exit code 1\n") +
+		redBoldString("testfile-failure-2: Failed with exit code 2\n") +
+		redBoldString("\nTests complete: 2 Passed, 2 Failed\n") +
 		"Seed used: 42\n"
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
@@ -405,13 +426,15 @@ func TestOutputResults(t *testing.T) {
 func TestOutputResultsJSON(t *testing.T) {
 	_, out := setupTestUI()
 	r := setupDefaultRunner()
+	r.failedTestResults = setupFailedTestResults()
 	r.randomSeed = 42
+	r.testResults = setupTestResults()
+	r.failedTestResults = setupFailedTestResults()
 
-	failedTestResults := setupFailedTestResults()
-	r.outputResultsJSON(failedTestResults, 5)
-	expected := `{"passed":3,"failed":2,"seed":42,"inOrder":false,"failedList":[` +
-		`{"filename":"testfile1","success":false,"exitcode":1,"output":"It didn't work!"},` +
-		`{"filename":"testfile2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
+	r.outputResultsJSON()
+	expected := `{"passed":2,"failed":2,"seed":42,"inOrder":false,"failedList":[` +
+		`{"filename":"testfile-failure-1","success":false,"exitcode":1,"output":"It didn't work!"},` +
+		`{"filename":"testfile-failure-2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
 	}
