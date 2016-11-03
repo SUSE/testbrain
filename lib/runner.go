@@ -18,36 +18,18 @@ import (
 // Runner runs a series of tests and displays its results
 type Runner struct {
 	// Flags
-	testTargets []string
-	includeRe   string
-	excludeRe   string
-	timeout     time.Duration
-	inOrder     bool
-	randomSeed  int64
-	jsonOutput  bool
-	verbose     bool
-	dryRun      bool
+	TestTargets []string
+	IncludeRe   string
+	ExcludeRe   string
+	Timeout     time.Duration
+	InOrder     bool
+	RandomSeed  int64
+	JSONOutput  bool
+	Verbose     bool
+	DryRun      bool
 
 	testResults       []TestResult
 	failedTestResults []TestResult
-}
-
-// NewRunner creates a new Runner struct by passing all flags
-// This lets us keep Runner's instance variables private
-func NewRunner(testFolders []string, flagInclude, flagExclude string, flagTimeout time.Duration,
-	flagInOrder bool, flagSeed int64,
-	flagJSONOutput, flagVerbose, flagDryRun bool) *Runner {
-	r := new(Runner)
-	r.testTargets = testFolders
-	r.includeRe = flagInclude
-	r.excludeRe = flagExclude
-	r.timeout = flagTimeout
-	r.inOrder = flagInOrder
-	r.randomSeed = flagSeed
-	r.jsonOutput = flagJSONOutput
-	r.verbose = flagVerbose
-	r.dryRun = flagDryRun
-	return r
 }
 
 // RunCommand is the public entrypoint of the Runner
@@ -57,11 +39,11 @@ func (r *Runner) RunCommand() error {
 	if err != nil {
 		return err
 	}
-	if !r.jsonOutput {
+	if !r.JSONOutput {
 		UI.Printf("Found %d test files\n", len(testFiles))
 	}
-	if r.dryRun {
-		if !r.jsonOutput {
+	if r.DryRun {
+		if !r.JSONOutput {
 			UI.Printf("Test root: %s\n", testRoot)
 			UI.Printf("Test files:\n")
 			for _, testFile := range testFiles {
@@ -72,8 +54,8 @@ func (r *Runner) RunCommand() error {
 	}
 
 	r.runAllTests(testFiles, testRoot)
-	r.getFailedTestResults()
-	if r.jsonOutput {
+	r.collectFailedTestResults()
+	if r.JSONOutput {
 		r.outputResultsJSON()
 	} else {
 		r.outputResults()
@@ -90,24 +72,24 @@ func (r *Runner) getTestScriptsWithOrder() (string, []string, error) {
 		return "", nil, err
 	}
 	sort.Strings(testFiles)
-	if !r.inOrder {
+	if !r.InOrder {
 		r.shuffleOrder(testFiles)
 	}
 	return testRoot, testFiles, err
 }
 
 func (r *Runner) getTestScripts() (string, []string, error) {
-	includeRe, err := regexp.Compile(r.includeRe)
+	includeRe, err := regexp.Compile(r.IncludeRe)
 	if err != nil {
 		return "", nil, fmt.Errorf("Error parsing files to include: %s", err)
 	}
-	excludeRe, err := regexp.Compile(r.excludeRe)
+	excludeRe, err := regexp.Compile(r.ExcludeRe)
 	if err != nil {
 		return "", nil, fmt.Errorf("Error parsing files to exclude: %s", err)
 	}
 
 	var foundTests []string
-	for _, testFolderOriginal := range r.testTargets {
+	for _, testFolderOriginal := range r.TestTargets {
 		testFolder, err := filepath.Abs(testFolderOriginal)
 		if err != nil {
 			return "", nil, fmt.Errorf("Error making %s absolute", testFolderOriginal)
@@ -149,7 +131,7 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 	}
 
 	var commonPrefix string
-	if len(r.testTargets) > 1 {
+	if len(r.TestTargets) > 1 {
 		if len(foundTests) > 1 {
 			commonPrefix, err = CommonPathPrefix(foundTests)
 			if err != nil {
@@ -163,9 +145,9 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 	} else {
 		// Only one test folder given; use it as the prefix; unless it's a file,
 		// then in which case use its directory
-		testFolder, err := filepath.Abs(r.testTargets[0])
+		testFolder, err := filepath.Abs(r.TestTargets[0])
 		if err != nil {
-			return "", nil, fmt.Errorf("Error finding absolute path of %s: %s", r.testTargets[0], err)
+			return "", nil, fmt.Errorf("Error finding absolute path of %s: %s", r.TestTargets[0], err)
 		}
 		info, err := os.Stat(testFolder)
 		if err != nil {
@@ -188,7 +170,7 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 }
 
 func (r *Runner) shuffleOrder(list []string) {
-	rand.Seed(r.randomSeed)
+	rand.Seed(r.RandomSeed)
 	// See https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm
 	for i := len(list) - 1; i >= 1; i-- {
 		source := rand.Intn(i + 1)
@@ -198,7 +180,7 @@ func (r *Runner) shuffleOrder(list []string) {
 
 func (r *Runner) runAllTests(testFiles []string, testFolder string) {
 	for i, testFile := range testFiles {
-		if !r.jsonOutput && r.verbose {
+		if !r.JSONOutput && r.Verbose {
 			UI.Printf("Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
 		result := r.runSingleTest(testFile, testFolder)
@@ -218,7 +200,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	}
 	var timeoutLock sync.Mutex
 	timeoutReached := false
-	timer := time.AfterFunc(r.timeout, func() {
+	timer := time.AfterFunc(r.Timeout, func() {
 		command.Process.Kill()
 		timeoutLock.Lock()
 		defer timeoutLock.Unlock()
@@ -228,7 +210,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	timer.Stop()
 	timeoutLock.Lock()
 	if timeoutReached {
-		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", r.timeout))
+		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", r.Timeout))
 	}
 	timeoutLock.Unlock()
 
@@ -273,7 +255,7 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 }
 
 func (r *Runner) printVerboseSingleTestResult(result TestResult) {
-	if !r.jsonOutput && r.verbose {
+	if !r.JSONOutput && r.Verbose {
 		if result.Success {
 			Green.Println("OK")
 		} else {
@@ -283,7 +265,7 @@ func (r *Runner) printVerboseSingleTestResult(result TestResult) {
 	}
 }
 
-func (r *Runner) getFailedTestResults() {
+func (r *Runner) collectFailedTestResults() {
 	for _, result := range r.testResults {
 		if !result.Success {
 			r.failedTestResults = append(r.failedTestResults, result)
@@ -303,14 +285,14 @@ func (r *Runner) outputResults() {
 	} else {
 		GreenBold.Println(summaryString)
 	}
-	if !r.inOrder {
-		UI.Printf("Seed used: %d\n", r.randomSeed)
+	if !r.InOrder {
+		UI.Printf("Seed used: %d\n", r.RandomSeed)
 	}
 }
 
 func (r *Runner) outputResultsJSON() {
-	displayedSeed := r.randomSeed
-	if r.inOrder {
+	displayedSeed := r.RandomSeed
+	if r.InOrder {
 		displayedSeed = -1
 	}
 	nbTestsFailed := len(r.failedTestResults)
@@ -327,9 +309,12 @@ func (r *Runner) outputResultsJSON() {
 		Passed:     nbTestsPassed,
 		Failed:     nbTestsFailed,
 		Seed:       displayedSeed,
-		InOrder:    r.inOrder,
+		InOrder:    r.InOrder,
 		FailedList: r.failedTestResults,
 	}
-	jsonOutput, _ := json.Marshal(jsonOutputStruct)
+	jsonOutput, err := json.Marshal(jsonOutputStruct)
+	if err != nil {
+		RedBold.Println("Error trying to marshal JSON output")
+	}
 	UI.Write(jsonOutput)
 }
