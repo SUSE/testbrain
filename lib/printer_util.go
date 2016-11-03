@@ -9,11 +9,16 @@ import (
 )
 
 var (
-	UI        *termui.UI
-	Green     = color.New(color.FgGreen)
+	// UI is the global printer
+	UI *termui.UI
+	// Green is a convenient color helper
+	Green = color.New(color.FgGreen)
+	// GreenBold is a convenient color helper
 	GreenBold = color.New(color.FgGreen, color.Bold)
-	Red       = color.New(color.FgRed)
-	RedBold   = color.New(color.FgRed, color.Bold)
+	// Red is a convenient color helper
+	Red = color.New(color.FgRed)
+	// RedBold is a convenient color helper
+	RedBold = color.New(color.FgRed, color.Bold)
 )
 
 func init() {

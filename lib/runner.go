@@ -15,6 +15,7 @@ import (
 	"time"
 )
 
+// Runner runs a series of tests and displays its results
 type Runner struct {
 	// Flags
 	testTargets []string
@@ -31,6 +32,8 @@ type Runner struct {
 	failedTestResults []TestResult
 }
 
+// NewRunner creates a new Runner struct by passing all flags
+// This lets us keep Runner's instance variables private
 func NewRunner(testFolders []string, flagInclude, flagExclude string, flagTimeout time.Duration,
 	flagInOrder bool, flagSeed int64,
 	flagJSONOutput, flagVerbose, flagDryRun bool) *Runner {
@@ -47,6 +50,8 @@ func NewRunner(testFolders []string, flagInclude, flagExclude string, flagTimeou
 	return r
 }
 
+// RunCommand is the public entrypoint of the Runner
+// It gathers test scripts, runs them, and displays the result
 func (r *Runner) RunCommand() error {
 	testRoot, testFiles, err := r.getTestScriptsWithOrder()
 	if err != nil {
