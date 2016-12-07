@@ -16,9 +16,9 @@ func main() {
 
 	switch {
 	case version == "":
-		termui.PrintAndExit(ui, errors.New("Testbrain was built incorrectly and its version string is empty."))
+		termui.PrintAndExit(ui, errors.New("testbrain was built incorrectly and its version string is empty"))
 	case version == "0":
-		termui.PrintAndExit(ui, errors.New("Testbrain was built incorrectly and it doesn't have a proper version string."))
+		termui.PrintAndExit(ui, errors.New("testbrain was built incorrectly and it doesn't have a proper version string"))
 	}
 
 	cmd.Execute(version)
