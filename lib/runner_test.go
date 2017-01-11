@@ -345,7 +345,8 @@ func TestRunSingleTestTimeout(t *testing.T) {
 
 	testFolder, _ := filepath.Abs("../testdata")
 	testResult := r.runSingleTest("timeout_test.sh", testFolder)
-	expectedOutput := "Stuck in an infinite loop!\n" +
+	expectedOutput := "Timeout = 1\n" +
+		"Stuck in an infinite loop!\n" +
 		"Stuck in an infinite loop!\n" +
 		"Stuck in an infinite loop!\n" +
 		"Killed by testbrain: Timed out after 1s"

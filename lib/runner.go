@@ -194,6 +194,13 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	commandOutput := &bytes.Buffer{}
 	command.Stdout = commandOutput
 	command.Stderr = commandOutput
+
+	// Propagate timeout information from brain to script, via the
+	// environment of the script.
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("TESTBRAIN_TIMEOUT=%d", int(r.Timeout.Seconds())))
+	command.Env = env
+
 	err := command.Start()
 	if err != nil {
 		return ErrorTestResult(testFile, err)
