@@ -132,7 +132,8 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 
 	var commonPrefix string
 	if len(r.TestTargets) > 1 {
-		if len(foundTests) > 1 {
+		if len(foundTests) != 1 {
+			// None or more than one test found.
 			commonPrefix, err = CommonPathPrefix(foundTests)
 			if err != nil {
 				return "", nil, fmt.Errorf("Error getting common prefix for paths: %s", err)
