@@ -90,7 +90,7 @@ func TestGetTestScripts(t *testing.T) {
 		t.Fatalf("Error getting test scripts: %s", err)
 	}
 	if testFolder != testRoot {
-		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+		t.Fatalf("Test root '%s' was not '%s'", testRoot, testFolder)
 	}
 	expected := []string{"000_script_test.sh", "001_script_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
@@ -111,11 +111,80 @@ func TestGetTestScripts_IncludeFilters(t *testing.T) {
 		t.Fatalf("Error getting test scripts: %s", err)
 	}
 	if testFolder != testRoot {
-		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+		t.Fatalf("Test root '%s' was not '%s'", testRoot, testFolder)
 	}
 	expected := []string{"000_script_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
 		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
+func TestGetTestScripts_IncludeFiltersMultiFolder(t *testing.T) {
+	t.Parallel()
+
+	r := setupDefaultRunner()
+	testFolderA, _ := filepath.Abs("../testdata/testfolder1")
+	testFolderB, _ := filepath.Abs("../testdata/testfolder3-many-tests")
+	r.TestTargets = []string{testFolderA, testFolderB}
+	r.IncludeRe = "000"
+
+	testRoot, testScripts, err := r.getTestScripts()
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	expectedRoot := "testdata"
+	if expectedRoot != filepath.Base(testRoot) {
+		t.Fatalf("Test root %s was not %s", testRoot, expectedRoot)
+	}
+	expected := []string{
+		"testfolder1/000_script_test.sh",
+		"testfolder3-many-tests/000_script_test.sh",
+	}
+	if !reflect.DeepEqual(testScripts, expected) {
+		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testScripts)
+	}
+}
+
+func TestGetTestScripts_IncludeFiltersNoMatch(t *testing.T) {
+	t.Parallel()
+
+	r := setupDefaultRunner()
+	testFolder, _ := filepath.Abs("../testdata/testfolder1")
+	r.TestTargets = []string{testFolder}
+	r.IncludeRe = "002" // testfolder1 has only 000 and 001
+
+	testRoot, testScripts, err := r.getTestScripts()
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	if testFolder != testRoot {
+		t.Fatalf("Test root %s was not %s", testRoot, testFolder)
+	}
+
+	if len(testScripts) > 0 {
+		t.Fatalf("Expected: []\nHave:     %v\n", testScripts)
+	}
+}
+
+func TestGetTestScripts_IncludeFiltersMultiFolderNoMatch(t *testing.T) {
+	t.Parallel()
+
+	r := setupDefaultRunner()
+	testFolderA, _ := filepath.Abs("../testdata/testfolder1")
+	testFolderB, _ := filepath.Abs("../testdata/testfolder3-many-tests")
+	r.TestTargets = []string{testFolderA, testFolderB}
+	r.IncludeRe = "005"
+
+	testRoot, testScripts, err := r.getTestScripts()
+	if err != nil {
+		t.Fatalf("Error getting test scripts: %s", err)
+	}
+	expectedRoot := ""
+	if expectedRoot != testRoot {
+		t.Fatalf("Test root '%s' was not '%s'", testRoot, expectedRoot)
+	}
+	if len(testScripts) > 0 {
+		t.Fatalf("Expected: []\nHave:     %v\n", testScripts)
 	}
 }
 
