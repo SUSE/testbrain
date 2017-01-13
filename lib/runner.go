@@ -41,6 +41,9 @@ func (r *Runner) RunCommand() error {
 	}
 	if !r.JSONOutput {
 		UI.Printf("Found %d test files\n", len(testFiles))
+		if !r.InOrder {
+			UI.Printf("Using seed: %d\n", r.RandomSeed)
+		}
 	}
 	if r.DryRun {
 		if !r.JSONOutput {
