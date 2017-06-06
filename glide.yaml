@@ -1,8 +1,8 @@
-package: github.com/hpcloud/testbrain
+package: github.com/suse/testbrain
 import:
 - package: github.com/fatih/color
   version: ^1.1.0
-- package: github.com/hpcloud/termui
+- package: github.com/suse/termui
   subpackages:
   - termpassword
 - package: github.com/spf13/cobra

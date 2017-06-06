@@ -1,8 +1,8 @@
-hash: 5b5370fc32dd3de0568d4a63ec383ced645fac2481bc878d7b87c1d0bac17ec6
-updated: 2016-10-24T16:58:42.193441118-07:00
+hash: 3031fdc6f2900cca99d16596f0c077d7b83ef80dfbf00e3f66febf0da1cbdf3e
+updated: 2017-06-06T07:15:41.883110841-07:00
 imports:
 - name: github.com/fatih/color
-  version: dea9d3a26a087187530244679c1cfb3a42937794
+  version: 570b54cabe6b8eb0bc2dfce68d964677d63b5260
 - name: github.com/fsnotify/fsnotify
   version: f12c6236fe7b5cf6bcf30e5935d08cb079d78334
 - name: github.com/hashicorp/hcl
@@ -21,6 +21,11 @@ imports:
   subpackages:
   - sigint
   - termpassword
+- name: github.com/hpcloud/testbrain
+  version: b0d60750a794b4016c77edbd1197dcf65196d29d
+  subpackages:
+  - cmd
+  - lib
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/kr/fs
@@ -56,6 +61,10 @@ imports:
   version: c7e63cf4530bcd3ba943729cee0efeff2ebea63f
 - name: github.com/spf13/viper
   version: 16990631d4aa7e38f73dbbbf37fa13e67c648531
+- name: github.com/suse/termui
+  version: 92556107bd806bea5d53728326e7d45c7b03f43c
+  subpackages:
+  - termpassword
 - name: golang.org/x/crypto
   version: 5dc8cb4b8a8eb076cbb5a06bc3b8682c15bdbbd3
   subpackages:
