@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/hpcloud/testbrain/lib"
+	"github.com/suse/testbrain/lib"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

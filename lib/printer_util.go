@@ -4,8 +4,8 @@ import (
 	"os"
 
 	"github.com/fatih/color"
-	"github.com/hpcloud/termui"
-	"github.com/hpcloud/termui/termpassword"
+	"github.com/suse/termui"
+	"github.com/suse/termui/termpassword"
 )
 
 var (

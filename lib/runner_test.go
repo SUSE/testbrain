@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/fatih/color"
-	"github.com/hpcloud/termui"
+	"github.com/suse/termui"
 )
 
 var (
