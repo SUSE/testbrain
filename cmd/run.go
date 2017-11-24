@@ -5,9 +5,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/SUSE/testbrain/lib"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/suse/testbrain/lib"
 )
 
 // runCmd represents the run command

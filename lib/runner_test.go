@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SUSE/termui"
 	"github.com/fatih/color"
-	"github.com/suse/termui"
 )
 
 var (
