@@ -3,9 +3,9 @@ package lib
 import (
 	"os"
 
+	"github.com/SUSE/termui"
+	"github.com/SUSE/termui/termpassword"
 	"github.com/fatih/color"
-	"github.com/suse/termui"
-	"github.com/suse/termui/termpassword"
 )
 
 var (

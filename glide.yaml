@@ -1,8 +1,8 @@
-package: github.com/suse/testbrain
+package: github.com/SUSE/testbrain
 import:
 - package: github.com/fatih/color
 - package: github.com/spf13/cobra
 - package: github.com/spf13/viper
-- package: github.com/suse/termui
+- package: github.com/SUSE/termui
   subpackages:
   - termpassword

@@ -51,7 +51,7 @@ imports:
   version: c7e63cf4530bcd3ba943729cee0efeff2ebea63f
 - name: github.com/spf13/viper
   version: 16990631d4aa7e38f73dbbbf37fa13e67c648531
-- name: github.com/suse/termui
+- name: github.com/SUSE/termui
   version: 92556107bd806bea5d53728326e7d45c7b03f43c
   subpackages:
   - sigint

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"os"
 
-	"github.com/suse/termui"
-	"github.com/suse/testbrain/cmd"
+	"github.com/SUSE/termui"
+	"github.com/SUSE/testbrain/cmd"
 )
 
 // This variable is set in the make/build script, during the go build
