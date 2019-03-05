@@ -57,8 +57,8 @@ func NewRunner(
 	}
 }
 
-// RunCommand is the public entrypoint of the Runner
-// It gathers test scripts, runs them, and displays the result
+// RunCommand is the public entrypoint of the Runner.
+// It gathers test scripts, runs them, and displays the result.
 func (r *Runner) RunCommand() error {
 	testRoot, testFiles, err := r.getTestScriptsWithOrder()
 	if err != nil {
@@ -167,13 +167,13 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 				return "", nil, fmt.Errorf("Error getting common prefix for paths: %s", err)
 			}
 		} else {
-			// Only one test found of many specified; use its parent as the prefix
-			// Otherwise CommonPathPrefix() would give a silly result
+			// Only one test found of many specified; use its parent as the prefix.
+			// Otherwise CommonPathPrefix() would give a silly result.
 			commonPrefix = filepath.Dir(foundTests[0])
 		}
 	} else {
 		// Only one test folder given; use it as the prefix; unless it's a file,
-		// then in which case use its directory
+		// then in which case use its directory.
 		testFolder, err := filepath.Abs(r.testTargets[0])
 		if err != nil {
 			return "", nil, fmt.Errorf("Error finding absolute path of %s: %s", r.testTargets[0], err)
@@ -200,7 +200,7 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 
 func (r *Runner) shuffleOrder(list []string) {
 	rand.Seed(r.randomSeed)
-	// See https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm
+	// See https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm.
 	for i := len(list) - 1; i >= 1; i-- {
 		source := rand.Intn(i + 1)
 		list[i], list[source] = list[source], list[i]
@@ -224,8 +224,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	command.Stdout = commandOutput
 	command.Stderr = commandOutput
 
-	// Propagate timeout information from brain to script, via the
-	// environment of the script.
+	// Propagate timeout information from brain to script, via the environment of the script.
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("TESTBRAIN_TIMEOUT=%d", int(r.timeout.Seconds())))
 	command.Env = env
@@ -266,27 +265,28 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 	if command.ProcessState.Success() {
 		// Not exactly necessary, since we can check Success(),
-		// but more correct than saying status code is unknown
+		// but more correct than saying status code is unknown.
 		return 0, nil
 	}
 	if err != nil {
 		exitErr, ok := err.(*exec.ExitError)
 		if ok {
-			// The program has exited with an ExitError, we can get the error code from WaitStatus
-			// See https://golang.org/pkg/os/#ProcessState.Sys
-			// Although the docs mention syscall.WaitStatus works on Unix, it seems to work on Windows too
+			// The program has exited with an ExitError, we can get the error code from WaitStatus.
+			// See https://golang.org/pkg/os/#ProcessState.Sys.
+			// Although the docs mention syscall.WaitStatus works on Unix, it seems to work on Windows
+			// too.
 			status, ok := exitErr.Sys().(syscall.WaitStatus)
 			if ok {
 				return status.ExitStatus(), nil
 			}
 		}
 
-		// There is an error but it's not an ExitError
-		// Something other than the test script failed, bubble up the error
+		// There is an error but it's not an ExitError.
+		// Something other than the test script failed, bubble up the error.
 		return UnknownExitCode, err
 	}
 
-	// The test script failed, but without an error
+	// The test script failed, but without an error.
 	return UnknownExitCode, nil
 }
 
