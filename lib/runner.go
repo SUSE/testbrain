@@ -2,6 +2,7 @@ package lib
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -10,7 +11,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"sync"
 	"syscall"
 	"time"
 )
@@ -219,7 +219,13 @@ func (r *Runner) runAllTests(testFiles []string, testFolder string) {
 }
 
 func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
-	command := exec.Command(filepath.Join(testFolder, testFile))
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+
+	testPath := filepath.Join(testFolder, testFile)
+
+	command := exec.CommandContext(ctx, testPath)
+
 	commandOutput := &bytes.Buffer{}
 	command.Stdout = commandOutput
 	command.Stderr = commandOutput
@@ -233,33 +239,26 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	if err != nil {
 		return ErrorTestResult(testFile, err)
 	}
-	var timeoutLock sync.Mutex
-	timeoutReached := false
-	timer := time.AfterFunc(r.timeout, func() {
-		command.Process.Kill()
-		timeoutLock.Lock()
-		defer timeoutLock.Unlock()
-		timeoutReached = true
-	})
-	err = command.Wait()
-	timer.Stop()
-	timeoutLock.Lock()
-	if timeoutReached {
-		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", r.timeout))
-	}
-	timeoutLock.Unlock()
 
-	exitCode, err := r.getErrorCode(err, command)
-	if err != nil {
-		return ErrorTestResult(testFile, err)
-	}
+	errCmd := command.Wait()
 
-	return TestResult{
+	testResult := TestResult{
 		TestFile: testFile,
-		Success:  command.ProcessState.Success(),
-		ExitCode: exitCode,
-		Output:   string(commandOutput.Bytes()),
 	}
+	if ctx.Err() == context.DeadlineExceeded {
+		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", r.timeout))
+		testResult.ExitCode = -1
+		testResult.Success = false
+	} else {
+		testResult.ExitCode, err = r.getErrorCode(errCmd, command)
+		if err != nil {
+			return ErrorTestResult(testFile, err)
+		}
+		testResult.Success = command.ProcessState.Success()
+	}
+	testResult.Output = string(commandOutput.Bytes())
+
+	return testResult
 }
 
 func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
