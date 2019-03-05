@@ -240,17 +240,25 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 		return ErrorTestResult(testFile, err)
 	}
 
-	errCmd := command.Wait()
+	done := make(chan error)
+	go func() {
+		done <- command.Wait()
+	}()
+
+	timeout := time.After(r.timeout)
 
 	testResult := TestResult{
 		TestFile: testFile,
 	}
-	if ctx.Err() == context.DeadlineExceeded {
+
+	select {
+	case <-timeout:
+		command.Process.Kill()
 		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", r.timeout))
-		testResult.ExitCode = -1
 		testResult.Success = false
-	} else {
-		testResult.ExitCode, err = r.getErrorCode(errCmd, command)
+		testResult.ExitCode = -1
+	case err = <-done:
+		testResult.ExitCode, err = r.getErrorCode(err, command)
 		if err != nil {
 			return ErrorTestResult(testFile, err)
 		}
