@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 OSES="linux darwin"
 
@@ -8,12 +8,14 @@ set -o errexit
 
 . make/include/colors.sh
 
-echo "${OK_COLOR}==> Installing tools${NO_COLOR}"
-#Great tools to have, and used in the build file
+echo -e "${OK_COLOR}==> Installing tools${NO_COLOR}"
+
+# Great tools to have, and used in the build file.
 go get -u golang.org/x/tools/cmd/goimports
 go get -u golang.org/x/tools/cmd/cover
 go get -u github.com/golang/lint/golint
-	
-#Tools for the project
+
+# Tools for the project.
 go get -u github.com/axw/gocov/gocov
 go get -u github.com/AlekSi/gocov-xml
+go get -u github.com/SUSE/termui
