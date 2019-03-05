@@ -62,16 +62,17 @@ func runCommandWithViperArgs(_ *cobra.Command, args []string) error {
 		args = []string{cwd}
 	}
 
-	runner := &lib.Runner{
-		TestTargets: args,
-		IncludeRe:   flagInclude,
-		ExcludeRe:   flagExclude,
-		Timeout:     flagTimeout,
-		InOrder:     flagInOrder,
-		RandomSeed:  flagSeed,
-		JSONOutput:  flagJSONOutput,
-		Verbose:     flagVerbose,
-		DryRun:      flagDryRun,
-	}
+	testTargets := args
+	runner := lib.NewRunner(
+		testTargets,
+		flagInclude,
+		flagExclude,
+		flagTimeout,
+		flagInOrder,
+		flagSeed,
+		flagJSONOutput,
+		flagVerbose,
+		flagDryRun,
+	)
 	return runner.RunCommand()
 }
