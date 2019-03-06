@@ -1,7 +1,8 @@
 package lib
 
 import (
-	"bytes"
+	"io"
+	"io/ioutil"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -19,7 +20,7 @@ var (
 	redBoldString = color.New(color.FgRed, color.Bold).SprintfFunc()
 )
 
-func setupDefaultRunner() (*Runner, *bytes.Buffer, *bytes.Buffer) {
+func setupDefaultRunner() (*Runner, io.ReadWriter, io.ReadWriter) {
 	testTargets := []string{}
 	includeReStr := defaultInclude
 	excludeReStr := defaultExclude
@@ -40,14 +41,14 @@ func setupDefaultRunner() (*Runner, *bytes.Buffer, *bytes.Buffer) {
 		verbose,
 		dryRun,
 	)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
+	stdout := NewConcurrentBuffer()
+	stderr := NewConcurrentBuffer()
 	runner := NewRunner(
-		&stdout,
-		&stderr,
+		stdout,
+		stderr,
 		options,
 	)
-	return runner, &stdout, &stderr
+	return runner, stdout, stderr
 }
 
 func setupTestResults() []TestResult {
@@ -59,13 +60,11 @@ func setupPassedTestResults() []TestResult {
 		TestFile: "testfile-success-1",
 		Success:  true,
 		ExitCode: 0,
-		Output:   "It worked!",
 	}
 	passedTestResult2 := TestResult{
 		TestFile: "testfile-success-2",
 		Success:  true,
 		ExitCode: 0,
-		Output:   "It worked again!",
 	}
 	return []TestResult{passedTestResult1, passedTestResult2}
 }
@@ -75,13 +74,11 @@ func setupFailedTestResults() []TestResult {
 		TestFile: "testfile-failure-1",
 		Success:  false,
 		ExitCode: 1,
-		Output:   "It didn't work!",
 	}
 	failedTestResult2 := TestResult{
 		TestFile: "testfile-failure-2",
 		Success:  false,
 		ExitCode: 2,
-		Output:   "It didn't work again!",
 	}
 	return []TestResult{failedTestResult1, failedTestResult2}
 }
@@ -368,7 +365,6 @@ func TestShuffleOrder(t *testing.T) {
 	t.Parallel()
 
 	r, _, _ := setupDefaultRunner()
-
 	testFiles := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}
 	originalOrder := make([]string, len(testFiles))
 	copy(originalOrder, testFiles)
@@ -382,14 +378,12 @@ func TestRunSingleTestSuccess(t *testing.T) {
 	t.Parallel()
 
 	r, _, _ := setupDefaultRunner()
-
 	testFolder, _ := filepath.Abs("../testdata/success")
 	testResult := r.runSingleTest("hello_world_test.sh", testFolder)
 	expected := TestResult{
 		TestFile: "hello_world_test.sh",
 		Success:  true,
 		ExitCode: 0,
-		Output:   "Hello World!\n",
 	}
 	if !reflect.DeepEqual(testResult, expected) {
 		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testResult)
@@ -400,14 +394,12 @@ func TestRunSingleTestFailure(t *testing.T) {
 	t.Parallel()
 
 	r, _, _ := setupDefaultRunner()
-
 	testFolder, _ := filepath.Abs("../testdata/failure")
 	testResult := r.runSingleTest("failure_test.sh", testFolder)
 	expected := TestResult{
 		TestFile: "failure_test.sh",
 		Success:  false,
 		ExitCode: 42,
-		Output:   "Goodbye World!\n",
 	}
 	if !reflect.DeepEqual(testResult, expected) {
 		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testResult)
@@ -417,28 +409,75 @@ func TestRunSingleTestFailure(t *testing.T) {
 func TestRunSingleTestTimeout(t *testing.T) {
 	t.Parallel()
 
-	r, _, _ := setupDefaultRunner()
-	r.options.timeout = 1 * time.Second
+	testFile := "timeout_test.sh"
+
+	tests := []struct {
+		title              string
+		verbose            bool
+		expectedTestResult TestResult
+		expectedStdout     string
+		expectedStderr     string
+	}{
+		{
+			title:   "verbose",
+			verbose: true,
+			expectedTestResult: TestResult{
+				TestFile: testFile,
+				Success:  false,
+				ExitCode: -1,
+			},
+			expectedStdout: "Timeout = 1\n" +
+				"Long running process...\n",
+			expectedStderr: "Killed by testbrain: Timed out after 1s\n",
+		},
+		{
+			title:   "non-verbose",
+			verbose: false,
+			expectedTestResult: TestResult{
+				TestFile: testFile,
+				Success:  false,
+				ExitCode: -1,
+			},
+			expectedStdout: "",
+			expectedStderr: "Killed by testbrain: Timed out after 1s\n" +
+				"Test output:\n" +
+				"Timeout = 1\n" +
+				"Long running process...\n",
+		},
+	}
 
 	testFolder, _ := filepath.Abs("../testdata")
-	testResult := r.runSingleTest("timeout_test.sh", testFolder)
-	expectedOutput := "Timeout = 1\n" +
-		"Long running process...\n" +
-		"Killed by testbrain: Timed out after 1s"
-	expected := TestResult{
-		TestFile: "timeout_test.sh",
-		Success:  false,
-		ExitCode: -1,
-		Output:   expectedOutput,
-	}
-	if !reflect.DeepEqual(testResult, expected) {
-		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testResult)
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			r, stdout, stderr := setupDefaultRunner()
+			r.options.timeout = 1 * time.Second
+			r.options.verbose = tt.verbose
+
+			testResult := r.runSingleTest(testFile, testFolder)
+			if !reflect.DeepEqual(testResult, tt.expectedTestResult) {
+				t.Fatalf("Expected: %v\nHave:     %v\n", tt.expectedTestResult, testResult)
+			}
+
+			stdoutBytes, err := ioutil.ReadAll(stdout)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stdoutStr := string(stdoutBytes); stdoutStr != tt.expectedStdout {
+				t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", tt.expectedStdout, stdoutStr)
+			}
+			stderrBytes, err := ioutil.ReadAll(stderr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stderrStr := string(stderrBytes); stderrStr != tt.expectedStderr {
+				t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", tt.expectedStderr, stderrStr)
+			}
+		})
 	}
 }
 
 func TestPrintVerboseSingleTestResult(t *testing.T) {
-	r, stdout, stderr := setupDefaultRunner()
-
 	type testInfo struct {
 		success        bool
 		json           bool
@@ -473,8 +512,7 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 			json:           false,
 			verbose:        true,
 			expectedStdout: "",
-			expectedStderr: color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED\n") +
-				color.RedString("Output:\ntest output\n"),
+			expectedStderr: color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED\n"),
 		},
 	}
 
@@ -482,18 +520,24 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 	for _, sample := range testData {
 		result := TestResult{
 			Success: sample.success,
-			Output:  "test output",
 		}
-		stdout.Reset()
-		stderr.Reset()
+		r, stdout, stderr := setupDefaultRunner()
 		r.options.jsonOutput = sample.json
 		r.options.verbose = sample.verbose
 		r.printVerboseSingleTestResult(result)
-		if got := stdout.String(); got != sample.expectedStdout {
-			t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", sample.expectedStdout, got)
+		stdoutBytes, err := ioutil.ReadAll(stdout)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if got := stderr.String(); got != sample.expectedStderr {
-			t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", sample.expectedStderr, got)
+		if stdoutStr := string(stdoutBytes); stdoutStr != sample.expectedStdout {
+			t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", sample.expectedStdout, stdoutStr)
+		}
+		stderrBytes, err := ioutil.ReadAll(stderr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if stderrStr := string(stderrBytes); stderrStr != sample.expectedStderr {
+			t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", sample.expectedStderr, stderrStr)
 		}
 	}
 }
@@ -509,28 +553,48 @@ func TestOutputResults(t *testing.T) {
 	expectedStderr := redBoldString("testfile-failure-1: Failed with exit code 1\n") +
 		redBoldString("testfile-failure-2: Failed with exit code 2\n") +
 		redBoldString("\nTests complete: 2 Passed, 2 Failed\n")
-	if got := stdout.String(); got != expectedStdout {
-		t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", expectedStdout, got)
+	stdoutBytes, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := stderr.String(); got != expectedStderr {
-		t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", expectedStderr, got)
+	if stdoutStr := string(stdoutBytes); stdoutStr != expectedStdout {
+		t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", expectedStdout, stdoutStr)
+	}
+	stderrBytes, err := ioutil.ReadAll(stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stderrStr := string(stderrBytes); stderrStr != expectedStderr {
+		t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", expectedStderr, stderrStr)
 	}
 }
 
 func TestOutputResultsJSON(t *testing.T) {
-	r, out, _ := setupDefaultRunner()
+	r, stdout, stderr := setupDefaultRunner()
 	r.failedTestResults = setupFailedTestResults()
 	r.options.randomSeed = 42
 	r.testResults = setupTestResults()
 	r.failedTestResults = setupFailedTestResults()
 
 	r.outputResultsJSON()
-	expected := `{"passed":2,"failed":2,"seed":42,"inOrder":false,"failedList":[` +
-		`{"filename":"testfile-failure-1","success":false,"exitcode":1,"output":"It didn't work!"},` +
-		`{"filename":"testfile-failure-2","success":false,"exitcode":2,"output":"It didn't work again!"}]}` +
+	expectedStdout := `{"passed":2,"failed":2,"seed":42,"inOrder":false,"failedList":[` +
+		`{"filename":"testfile-failure-1","success":false,"exitcode":1},` +
+		`{"filename":"testfile-failure-2","success":false,"exitcode":2}]}` +
 		"\n"
-	if got := out.String(); got != expected {
-		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
+	expectedStderr := ""
+	stdoutBytes, err := ioutil.ReadAll(stdout)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stdoutStr := string(stdoutBytes); stdoutStr != expectedStdout {
+		t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", expectedStdout, stdoutStr)
+	}
+	stderrBytes, err := ioutil.ReadAll(stderr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stderrStr := string(stderrBytes); stderrStr != expectedStderr {
+		t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", expectedStderr, stderrStr)
 	}
 }
 

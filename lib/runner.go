@@ -1,7 +1,6 @@
 package lib
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -245,14 +244,14 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 
 	command := exec.Command(testPath)
 
-	var testSummary bytes.Buffer
+	nonVerboseBuffer := NewConcurrentBuffer()
 
 	if r.options.verbose {
 		command.Stdout = r.stdout
 		command.Stderr = r.stderr
 	} else {
-		command.Stdout = &testSummary
-		command.Stderr = &testSummary
+		command.Stdout = nonVerboseBuffer
+		command.Stderr = nonVerboseBuffer
 	}
 
 	// Propagate timeout information from brain to script, via the environment of the script.
@@ -262,7 +261,8 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 
 	err := command.Start()
 	if err != nil {
-		return ErrorTestResult(testFile, err)
+		fmt.Fprintf(r.stderr, "Test failed: %v", err)
+		return ErrorTestResult(testFile)
 	}
 
 	done := make(chan error)
@@ -279,17 +279,22 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	select {
 	case <-timeout:
 		command.Process.Kill()
-		testSummary.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", r.options.timeout))
+		fmt.Fprintf(r.stderr, "Killed by testbrain: Timed out after %v\n", r.options.timeout)
 		testResult.Success = false
 		testResult.ExitCode = -1
 	case err = <-done:
 		testResult.ExitCode, err = r.getErrorCode(err, command)
 		if err != nil {
-			return ErrorTestResult(testFile, err)
+			fmt.Fprintf(r.stderr, "Test failed: %v", err)
+			return ErrorTestResult(testFile)
 		}
 		testResult.Success = command.ProcessState.Success()
 	}
-	testResult.Output = string(testSummary.Bytes())
+
+	if !r.options.verbose {
+		fmt.Fprintln(r.stderr, "Test output:")
+		io.Copy(r.stderr, nonVerboseBuffer)
+	}
 
 	return testResult
 }
@@ -324,7 +329,6 @@ func (r *Runner) printVerboseSingleTestResult(result TestResult) {
 			fmt.Fprintln(r.stdout, Green("OK"))
 		} else {
 			fmt.Fprintln(r.stderr, RedBold("FAILED"))
-			fmt.Fprintf(r.stderr, Red("Output:\n%s\n", result.Output))
 		}
 	}
 }
