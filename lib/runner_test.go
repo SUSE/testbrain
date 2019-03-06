@@ -505,7 +505,7 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 			json:           false,
 			verbose:        false,
 			resultOutput:   bytes.NewBufferString("something in the output"),
-			expectedStdout: color.GreenString("OK\n"),
+			expectedStdout: color.GreenString("PASSED: \n"),
 			expectedStderr: "",
 		},
 		{
@@ -514,7 +514,7 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 			json:           false,
 			verbose:        true,
 			resultOutput:   bytes.NewBufferString("something in the output"),
-			expectedStdout: color.GreenString("OK\n"),
+			expectedStdout: color.GreenString("PASSED: \n"),
 			expectedStderr: "",
 		},
 		{
@@ -533,7 +533,7 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 			verbose:        true,
 			resultOutput:   bytes.NewBufferString("something in the output"),
 			expectedStdout: "",
-			expectedStderr: color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED\n"),
+			expectedStderr: color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED: \n"),
 		},
 		{
 			title:          "Case #5",
@@ -543,7 +543,7 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 			resultOutput:   bytes.NewBufferString("something in the output"),
 			expectedStdout: "",
 			expectedStderr: color.New(color.FgRed, color.Bold).SprintfFunc()(
-				"FAILED\n" +
+				"FAILED: \n" +
 					"Test output:\n" +
 					"something in the output"),
 		},

@@ -325,9 +325,9 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 func (r *Runner) printVerboseSingleTestResult(result TestResult) {
 	if !r.options.jsonOutput {
 		if result.Success {
-			fmt.Fprintln(r.stdout, Green("OK"))
+			fmt.Fprintf(r.stdout, "%s: %s\n", Green("PASSED"), result.TestFile)
 		} else {
-			fmt.Fprintln(r.stderr, RedBold("FAILED"))
+			fmt.Fprintf(r.stderr, "%s: %s\n", RedBold("FAILED"), result.TestFile)
 			if !r.options.verbose {
 				fmt.Fprintln(r.stderr, "Test output:")
 				io.Copy(r.stderr, result.Output)
