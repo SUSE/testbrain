@@ -230,7 +230,7 @@ func (r *Runner) shuffleOrder(list []string) {
 
 func (r *Runner) runAllTests(testFiles []string, testFolder string) {
 	for i, testFile := range testFiles {
-		if !r.options.jsonOutput && r.options.verbose {
+		if !r.options.jsonOutput {
 			fmt.Fprintf(r.stdout, "Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
 		result := r.runSingleTest(testFile, testFolder)
@@ -244,14 +244,18 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 
 	command := exec.Command(testPath)
 
-	nonVerboseBuffer := NewConcurrentBuffer()
+	testResult := TestResult{
+		TestFile: testFile,
+	}
 
 	if r.options.verbose {
 		command.Stdout = r.stdout
 		command.Stderr = r.stderr
 	} else {
-		command.Stdout = nonVerboseBuffer
-		command.Stderr = nonVerboseBuffer
+		buf := NewConcurrentBuffer()
+		command.Stdout = buf
+		command.Stderr = buf
+		testResult.Output = buf
 	}
 
 	// Propagate timeout information from brain to script, via the environment of the script.
@@ -262,7 +266,9 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	err := command.Start()
 	if err != nil {
 		fmt.Fprintf(r.stderr, "Test failed: %v", err)
-		return ErrorTestResult(testFile)
+		testResult.Success = false
+		testResult.ExitCode = -1
+		return testResult
 	}
 
 	done := make(chan error)
@@ -271,10 +277,6 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	}()
 
 	timeout := time.After(r.options.timeout)
-
-	testResult := TestResult{
-		TestFile: testFile,
-	}
 
 	select {
 	case <-timeout:
@@ -286,14 +288,11 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 		testResult.ExitCode, err = r.getErrorCode(err, command)
 		if err != nil {
 			fmt.Fprintf(r.stderr, "Test failed: %v", err)
-			return ErrorTestResult(testFile)
+			testResult.Success = false
+			testResult.ExitCode = -1
+			return testResult
 		}
 		testResult.Success = command.ProcessState.Success()
-	}
-
-	if !r.options.verbose {
-		fmt.Fprintln(r.stderr, "Test output:")
-		io.Copy(r.stderr, nonVerboseBuffer)
 	}
 
 	return testResult
@@ -316,19 +315,23 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 
 		// There is an error but it's not an ExitError.
 		// Something other than the test script failed, bubble up the error.
-		return UnknownExitCode, err
+		return -1, err
 	}
 
 	// The test script failed, but without an error.
-	return UnknownExitCode, nil
+	return -1, nil
 }
 
 func (r *Runner) printVerboseSingleTestResult(result TestResult) {
-	if !r.options.jsonOutput && r.options.verbose {
+	if !r.options.jsonOutput {
 		if result.Success {
 			fmt.Fprintln(r.stdout, Green("OK"))
 		} else {
 			fmt.Fprintln(r.stderr, RedBold("FAILED"))
+			if !r.options.verbose {
+				fmt.Fprintln(r.stderr, "Test output:")
+				io.Copy(r.stderr, result.Output)
+			}
 		}
 	}
 }
