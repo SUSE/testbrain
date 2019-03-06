@@ -2,7 +2,6 @@ package lib
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -242,12 +241,9 @@ func (r *Runner) runAllTests(testFiles []string, testFolder string) {
 }
 
 func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
-	ctx, cancel := context.WithTimeout(context.Background(), r.options.timeout)
-	defer cancel()
-
 	testPath := filepath.Join(testFolder, testFile)
 
-	command := exec.CommandContext(ctx, testPath)
+	command := exec.Command(testPath)
 
 	commandOutput := &bytes.Buffer{}
 	command.Stdout = commandOutput
