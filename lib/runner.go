@@ -301,10 +301,6 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 	if err != nil {
 		exitErr, ok := err.(*exec.ExitError)
 		if ok {
-			// The program has exited with an ExitError, we can get the error code from WaitStatus.
-			// See https://golang.org/pkg/os/#ProcessState.Sys.
-			// Although the docs mention syscall.WaitStatus works on Unix, it seems to work on Windows
-			// too.
 			status, ok := exitErr.Sys().(syscall.WaitStatus)
 			if ok {
 				return status.ExitStatus(), nil
