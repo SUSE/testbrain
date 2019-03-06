@@ -35,7 +35,7 @@ func init() {
 	viper.BindPFlags(runCmd.PersistentFlags())
 }
 
-func runCommandWithViperArgs(_ *cobra.Command, args []string) error {
+func runCommandWithViperArgs(_ *cobra.Command, testTargets []string) error {
 	timeoutInSeconds := viper.GetInt("timeout")
 	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
 	flagJSONOutput := viper.GetBool("json")
@@ -53,17 +53,16 @@ func runCommandWithViperArgs(_ *cobra.Command, args []string) error {
 		flagSeed = time.Now().UnixNano()
 	}
 
-	if len(args) == 0 {
-		// No args given, current working directory is assumed
+	if len(testTargets) == 0 {
+		// No testTargets given, current working directory is assumed.
 		cwd, err := os.Getwd()
 		if err != nil {
 			return err
 		}
-		args = []string{cwd}
+		testTargets = []string{cwd}
 	}
 
-	testTargets := args
-	runner := lib.NewRunner(
+	options := lib.NewRunnerOptions(
 		testTargets,
 		flagInclude,
 		flagExclude,
@@ -73,6 +72,11 @@ func runCommandWithViperArgs(_ *cobra.Command, args []string) error {
 		flagJSONOutput,
 		flagVerbose,
 		flagDryRun,
+	)
+	runner := lib.NewRunner(
+		os.Stdout,
+		os.Stderr,
+		options,
 	)
 	return runner.RunCommand()
 }

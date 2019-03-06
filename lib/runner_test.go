@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SUSE/termui"
 	"github.com/fatih/color"
 )
 
@@ -20,15 +19,7 @@ var (
 	redBoldString = color.New(color.FgRed, color.Bold).SprintfFunc()
 )
 
-func setupTestUI() (*bytes.Buffer, *bytes.Buffer) {
-	in, out := &bytes.Buffer{}, &bytes.Buffer{}
-	UI = termui.New(in, out, nil)
-	color.Output = UI
-	color.NoColor = false
-	return in, out
-}
-
-func setupDefaultRunner() *Runner {
+func setupDefaultRunner() (*Runner, *bytes.Buffer, *bytes.Buffer) {
 	testTargets := []string{}
 	includeReStr := defaultInclude
 	excludeReStr := defaultExclude
@@ -38,7 +29,7 @@ func setupDefaultRunner() *Runner {
 	jsonOutput := false
 	verbose := false
 	dryRun := false
-	return NewRunner(
+	options := NewRunnerOptions(
 		testTargets,
 		includeReStr,
 		excludeReStr,
@@ -49,6 +40,14 @@ func setupDefaultRunner() *Runner {
 		verbose,
 		dryRun,
 	)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	runner := NewRunner(
+		&stdout,
+		&stderr,
+		options,
+	)
+	return runner, &stdout, &stderr
 }
 
 func setupTestResults() []TestResult {
@@ -90,9 +89,9 @@ func setupFailedTestResults() []TestResult {
 func TestGetTestScripts(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder1")
-	r.testTargets = []string{testFolder}
+	r.options.testTargets = []string{testFolder}
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -110,10 +109,10 @@ func TestGetTestScripts(t *testing.T) {
 func TestGetTestScripts_IncludeFilters(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder1")
-	r.testTargets = []string{testFolder}
-	r.includeReStr = "000"
+	r.options.testTargets = []string{testFolder}
+	r.options.includeReStr = "000"
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -131,11 +130,11 @@ func TestGetTestScripts_IncludeFilters(t *testing.T) {
 func TestGetTestScripts_IncludeFiltersMultiFolder(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolderA, _ := filepath.Abs("../testdata/testfolder1")
 	testFolderB, _ := filepath.Abs("../testdata/testfolder3-many-tests")
-	r.testTargets = []string{testFolderA, testFolderB}
-	r.includeReStr = "000"
+	r.options.testTargets = []string{testFolderA, testFolderB}
+	r.options.includeReStr = "000"
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -157,10 +156,10 @@ func TestGetTestScripts_IncludeFiltersMultiFolder(t *testing.T) {
 func TestGetTestScripts_IncludeFiltersNoMatch(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder1")
-	r.testTargets = []string{testFolder}
-	r.includeReStr = "002" // testfolder1 has only 000 and 001
+	r.options.testTargets = []string{testFolder}
+	r.options.includeReStr = "002" // testfolder1 has only 000 and 001
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -178,11 +177,11 @@ func TestGetTestScripts_IncludeFiltersNoMatch(t *testing.T) {
 func TestGetTestScripts_IncludeFiltersMultiFolderNoMatch(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolderA, _ := filepath.Abs("../testdata/testfolder1")
 	testFolderB, _ := filepath.Abs("../testdata/testfolder3-many-tests")
-	r.testTargets = []string{testFolderA, testFolderB}
-	r.includeReStr = "005"
+	r.options.testTargets = []string{testFolderA, testFolderB}
+	r.options.includeReStr = "005"
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -201,9 +200,9 @@ func TestGetTestScripts_ExcludeFilters(t *testing.T) {
 	t.Parallel()
 
 	testFolder, _ := filepath.Abs("../testdata/testfolder1")
-	r := setupDefaultRunner()
-	r.testTargets = []string{testFolder}
-	r.excludeReStr = "001"
+	r, _, _ := setupDefaultRunner()
+	r.options.testTargets = []string{testFolder}
+	r.options.excludeReStr = "001"
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -221,9 +220,9 @@ func TestGetTestScripts_ExcludeFilters(t *testing.T) {
 func TestGetTestScripts_NestedDirectories(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder2")
-	r.testTargets = []string{testFolder}
+	r.options.testTargets = []string{testFolder}
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -241,10 +240,10 @@ func TestGetTestScripts_NestedDirectories(t *testing.T) {
 func TestGetTestScripts_OnlyOneFile(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/success")
 	testPath := filepath.Join(testFolder, "hello_world_test.sh")
-	r.testTargets = []string{testPath}
+	r.options.testTargets = []string{testPath}
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -262,14 +261,14 @@ func TestGetTestScripts_OnlyOneFile(t *testing.T) {
 func TestGetTestScripts_NotIncludedExplicit(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder1")
 	testFiles := []string{
 		filepath.Join(testFolder, "000_script_test.sh"),
 		filepath.Join(testFolder, "001_script_test.sh"),
 	}
-	r.testTargets = testFiles
-	r.includeReStr = "000"
+	r.options.testTargets = testFiles
+	r.options.includeReStr = "000"
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -287,14 +286,14 @@ func TestGetTestScripts_NotIncludedExplicit(t *testing.T) {
 func TestGetTestScripts_OnlyOneResult(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder1")
 	testFiles := []string{
 		filepath.Join(testFolder, "000_script_test.sh"),
 		filepath.Join(testFolder, "001_script_test.sh"),
 	}
-	r.testTargets = testFiles
-	r.excludeReStr = "001"
+	r.options.testTargets = testFiles
+	r.options.excludeReStr = "001"
 
 	testRoot, testScripts, err := r.getTestScripts()
 	if err != nil {
@@ -312,9 +311,9 @@ func TestGetTestScripts_OnlyOneResult(t *testing.T) {
 func TestGetTestScriptsWithOrder_SameSeedSameOrder(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder3-many-tests")
-	r.testTargets = []string{testFolder}
+	r.options.testTargets = []string{testFolder}
 
 	_, testScripts1, err := r.getTestScriptsWithOrder()
 	if err != nil {
@@ -332,10 +331,10 @@ func TestGetTestScriptsWithOrder_SameSeedSameOrder(t *testing.T) {
 func TestGetTestScriptsWithOrder_SpecificSeed(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder3-many-tests")
-	r.testTargets = []string{testFolder}
-	r.randomSeed = 42
+	r.options.testTargets = []string{testFolder}
+	r.options.randomSeed = 42
 
 	_, testScripts, err := r.getTestScriptsWithOrder()
 	if err != nil {
@@ -350,10 +349,10 @@ func TestGetTestScriptsWithOrder_SpecificSeed(t *testing.T) {
 func TestGetTestScriptsWithOrder_InOrder(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/testfolder3-many-tests")
-	r.testTargets = []string{testFolder}
-	r.inOrder = true
+	r.options.testTargets = []string{testFolder}
+	r.options.inOrder = true
 
 	_, testScripts, err := r.getTestScriptsWithOrder()
 	if err != nil {
@@ -368,7 +367,7 @@ func TestGetTestScriptsWithOrder_InOrder(t *testing.T) {
 func TestShuffleOrder(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 
 	testFiles := []string{"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"}
 	originalOrder := make([]string, len(testFiles))
@@ -382,7 +381,7 @@ func TestShuffleOrder(t *testing.T) {
 func TestRunSingleTestSuccess(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 
 	testFolder, _ := filepath.Abs("../testdata/success")
 	testResult := r.runSingleTest("hello_world_test.sh", testFolder)
@@ -400,7 +399,7 @@ func TestRunSingleTestSuccess(t *testing.T) {
 func TestRunSingleTestFailure(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
+	r, _, _ := setupDefaultRunner()
 
 	testFolder, _ := filepath.Abs("../testdata/failure")
 	testResult := r.runSingleTest("failure_test.sh", testFolder)
@@ -418,8 +417,8 @@ func TestRunSingleTestFailure(t *testing.T) {
 func TestRunSingleTestTimeout(t *testing.T) {
 	t.Parallel()
 
-	r := setupDefaultRunner()
-	r.timeout = 1 * time.Second
+	r, _, _ := setupDefaultRunner()
+	r.options.timeout = 1 * time.Second
 
 	testFolder, _ := filepath.Abs("../testdata")
 	testResult := r.runSingleTest("timeout_test.sh", testFolder)
@@ -438,39 +437,43 @@ func TestRunSingleTestTimeout(t *testing.T) {
 }
 
 func TestPrintVerboseSingleTestResult(t *testing.T) {
-	_, out := setupTestUI()
-	r := setupDefaultRunner()
+	r, stdout, stderr := setupDefaultRunner()
 
 	type testInfo struct {
-		success  bool
-		json     bool
-		verbose  bool
-		expected string
+		success        bool
+		json           bool
+		verbose        bool
+		expectedStdout string
+		expectedStderr string
 	}
 	testData := []testInfo{
 		{
-			success:  true,
-			json:     false,
-			verbose:  false,
-			expected: "",
+			success:        true,
+			json:           false,
+			verbose:        false,
+			expectedStdout: "",
+			expectedStderr: "",
 		},
 		{
-			success:  true,
-			json:     false,
-			verbose:  true,
-			expected: color.GreenString("OK\n"),
+			success:        true,
+			json:           false,
+			verbose:        true,
+			expectedStdout: color.GreenString("OK\n"),
+			expectedStderr: "",
 		},
 		{
-			success:  false,
-			json:     true,
-			verbose:  false,
-			expected: "",
+			success:        false,
+			json:           true,
+			verbose:        false,
+			expectedStdout: "",
+			expectedStderr: "",
 		},
 		{
-			success: false,
-			json:    false,
-			verbose: true,
-			expected: color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED\n") +
+			success:        false,
+			json:           false,
+			verbose:        true,
+			expectedStdout: "",
+			expectedStderr: color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED\n") +
 				color.RedString("Output:\ntest output\n"),
 		},
 	}
@@ -481,38 +484,43 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 			Success: sample.success,
 			Output:  "test output",
 		}
-		out.Reset()
-		r.jsonOutput = sample.json
-		r.verbose = sample.verbose
+		stdout.Reset()
+		stderr.Reset()
+		r.options.jsonOutput = sample.json
+		r.options.verbose = sample.verbose
 		r.printVerboseSingleTestResult(result)
-		if got := out.String(); got != sample.expected {
-			t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", sample.expected, got)
+		if got := stdout.String(); got != sample.expectedStdout {
+			t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", sample.expectedStdout, got)
+		}
+		if got := stderr.String(); got != sample.expectedStderr {
+			t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", sample.expectedStderr, got)
 		}
 	}
 }
 
 func TestOutputResults(t *testing.T) {
-	_, out := setupTestUI()
-	r := setupDefaultRunner()
-	r.randomSeed = 42
+	r, stdout, stderr := setupDefaultRunner()
+	r.options.randomSeed = 42
 	r.testResults = setupTestResults()
 	r.failedTestResults = setupFailedTestResults()
 
 	r.outputResults()
-	expected := redBoldString("testfile-failure-1: Failed with exit code 1\n") +
+	expectedStdout := "Seed used: 42\n"
+	expectedStderr := redBoldString("testfile-failure-1: Failed with exit code 1\n") +
 		redBoldString("testfile-failure-2: Failed with exit code 2\n") +
-		redBoldString("\nTests complete: 2 Passed, 2 Failed\n") +
-		"Seed used: 42\n"
-	if got := out.String(); got != expected {
-		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
+		redBoldString("\nTests complete: 2 Passed, 2 Failed\n")
+	if got := stdout.String(); got != expectedStdout {
+		t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", expectedStdout, got)
+	}
+	if got := stderr.String(); got != expectedStderr {
+		t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", expectedStderr, got)
 	}
 }
 
 func TestOutputResultsJSON(t *testing.T) {
-	_, out := setupTestUI()
-	r := setupDefaultRunner()
+	r, out, _ := setupDefaultRunner()
 	r.failedTestResults = setupFailedTestResults()
-	r.randomSeed = 42
+	r.options.randomSeed = 42
 	r.testResults = setupTestResults()
 	r.failedTestResults = setupFailedTestResults()
 
@@ -527,8 +535,8 @@ func TestOutputResultsJSON(t *testing.T) {
 
 func TestRunCommandSuccess(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/success")
-	r := setupDefaultRunner()
-	r.testTargets = []string{testFolder}
+	r, _, _ := setupDefaultRunner()
+	r.options.testTargets = []string{testFolder}
 
 	err := r.RunCommand()
 	if err != nil {
@@ -538,8 +546,8 @@ func TestRunCommandSuccess(t *testing.T) {
 
 func TestRunCommandFailure(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/failure")
-	r := setupDefaultRunner()
-	r.testTargets = []string{testFolder}
+	r, _, _ := setupDefaultRunner()
+	r.options.testTargets = []string{testFolder}
 
 	err := r.RunCommand()
 	if err == nil {

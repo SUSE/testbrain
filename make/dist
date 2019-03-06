@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 OSES="linux darwin windows"
 
@@ -8,7 +8,7 @@ set -o errexit
 . make/include/versioning.sh
 
 
-echo "${OK_COLOR}==> Disting all${NO_COLOR}"; \
+echo -e "${OK_COLOR}==> Disting all${NO_COLOR}"; \
 for OS in ${OSES}; do \
 	cd build/${OS}-amd64/ 1> /dev/null; tar czf ../../${APP_VERSION}.${OS}-amd64.tgz ./; cd - 1> /dev/null; \
-done; 
+done;

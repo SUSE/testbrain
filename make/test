@@ -1,9 +1,9 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 set -o errexit
 
 . make/include/colors.sh
-echo "${OK_COLOR}==> Testing${NO_COLOR}"
-gocov test $(go list ./... | \
-    grep -v '/testbrain/vendor') \
+echo -e "${OK_COLOR}==> Testing${NO_COLOR}"
+gocov test "$(go list ./... | \
+    grep -v '/testbrain/vendor')" \
     -v -race -timeout 60m | gocov-xml > coverage.xml

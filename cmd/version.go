@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"github.com/SUSE/testbrain/lib"
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
@@ -10,7 +11,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Display testbrain's version.",
 	Run: func(cmd *cobra.Command, args []string) {
-		lib.UI.Println(version)
+		fmt.Println(version)
 	},
 }
 
