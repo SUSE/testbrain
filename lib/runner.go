@@ -245,9 +245,15 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 
 	command := exec.Command(testPath)
 
-	commandOutput := &bytes.Buffer{}
-	command.Stdout = commandOutput
-	command.Stderr = commandOutput
+	var testSummary bytes.Buffer
+
+	if r.options.verbose {
+		command.Stdout = r.stdout
+		command.Stderr = r.stderr
+	} else {
+		command.Stdout = &testSummary
+		command.Stderr = &testSummary
+	}
 
 	// Propagate timeout information from brain to script, via the environment of the script.
 	env := os.Environ()
@@ -273,7 +279,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	select {
 	case <-timeout:
 		command.Process.Kill()
-		commandOutput.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", r.options.timeout))
+		testSummary.WriteString(fmt.Sprintf("Killed by testbrain: Timed out after %v", r.options.timeout))
 		testResult.Success = false
 		testResult.ExitCode = -1
 	case err = <-done:
@@ -283,7 +289,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 		}
 		testResult.Success = command.ProcessState.Success()
 	}
-	testResult.Output = string(commandOutput.Bytes())
+	testResult.Output = string(testSummary.Bytes())
 
 	return testResult
 }
@@ -356,7 +362,7 @@ func (r *Runner) outputResultsJSON() {
 	nbTestsFailed := len(r.failedTestResults)
 	nbTestsPassed := len(r.testResults) - nbTestsFailed
 
-	// This is the only place where we need this struct, so anonymous struct seems appropriate
+	// This is the only place where we need this struct, so anonymous struct seems appropriate.
 	jsonOutputStruct := struct {
 		Passed     int          `json:"passed"`
 		Failed     int          `json:"failed"`
@@ -370,9 +376,10 @@ func (r *Runner) outputResultsJSON() {
 		InOrder:    r.options.inOrder,
 		FailedList: r.failedTestResults,
 	}
-	jsonOutput, err := json.Marshal(jsonOutputStruct)
+
+	jsonEncoder := json.NewEncoder(r.stdout)
+	err := jsonEncoder.Encode(jsonOutputStruct)
 	if err != nil {
 		fmt.Fprintln(r.stderr, RedBold("Error trying to marshal JSON output"))
 	}
-	r.stdout.Write(jsonOutput)
 }

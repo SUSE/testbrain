@@ -527,7 +527,8 @@ func TestOutputResultsJSON(t *testing.T) {
 	r.outputResultsJSON()
 	expected := `{"passed":2,"failed":2,"seed":42,"inOrder":false,"failedList":[` +
 		`{"filename":"testfile-failure-1","success":false,"exitcode":1,"output":"It didn't work!"},` +
-		`{"filename":"testfile-failure-2","success":false,"exitcode":2,"output":"It didn't work again!"}]}`
+		`{"filename":"testfile-failure-2","success":false,"exitcode":2,"output":"It didn't work again!"}]}` +
+		"\n"
 	if got := out.String(); got != expected {
 		t.Fatalf("Expected:\n %q\n\nHave:\n %q\n", expected, got)
 	}
