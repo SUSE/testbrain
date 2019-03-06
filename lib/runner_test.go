@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"bytes"
 	"io"
 	"io/ioutil"
 	"path/filepath"
@@ -379,14 +380,16 @@ func TestRunSingleTestSuccess(t *testing.T) {
 
 	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/success")
-	testResult := r.runSingleTest("hello_world_test.sh", testFolder)
-	expected := TestResult{
-		TestFile: "hello_world_test.sh",
-		Success:  true,
-		ExitCode: 0,
+	testFile := "hello_world_test.sh"
+	testResult := r.runSingleTest(testFile, testFolder)
+	if testResult.TestFile != testFile {
+		t.Fatalf("\nExpected TestFile: %v\nHave: %v\n", testFile, testResult.TestFile)
 	}
-	if !reflect.DeepEqual(testResult, expected) {
-		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testResult)
+	if testResult.Success != true {
+		t.Fatalf("\nExpected Success: %v\nHave: %v\n", true, testResult.Success)
+	}
+	if testResult.ExitCode != 0 {
+		t.Fatalf("\nExpected ExitCode: %v\nHave: %v\n", 0, testResult.ExitCode)
 	}
 }
 
@@ -395,14 +398,16 @@ func TestRunSingleTestFailure(t *testing.T) {
 
 	r, _, _ := setupDefaultRunner()
 	testFolder, _ := filepath.Abs("../testdata/failure")
-	testResult := r.runSingleTest("failure_test.sh", testFolder)
-	expected := TestResult{
-		TestFile: "failure_test.sh",
-		Success:  false,
-		ExitCode: 42,
+	testFile := "failure_test.sh"
+	testResult := r.runSingleTest(testFile, testFolder)
+	if testResult.TestFile != testFile {
+		t.Fatalf("\nExpected TestFile: %v\nHave: %v\n", testFile, testResult.TestFile)
 	}
-	if !reflect.DeepEqual(testResult, expected) {
-		t.Fatalf("Expected: %v\nHave:     %v\n", expected, testResult)
+	if testResult.Success != false {
+		t.Fatalf("\nExpected Success: %v\nHave: %v\n", false, testResult.Success)
+	}
+	if testResult.ExitCode != 42 {
+		t.Fatalf("\nExpected ExitCode: %v\nHave: %v\n", 42, testResult.ExitCode)
 	}
 }
 
@@ -439,10 +444,7 @@ func TestRunSingleTestTimeout(t *testing.T) {
 				ExitCode: -1,
 			},
 			expectedStdout: "",
-			expectedStderr: "Killed by testbrain: Timed out after 1s\n" +
-				"Test output:\n" +
-				"Timeout = 1\n" +
-				"Long running process...\n",
+			expectedStderr: "Killed by testbrain: Timed out after 1s\n",
 		},
 	}
 
@@ -455,8 +457,18 @@ func TestRunSingleTestTimeout(t *testing.T) {
 			r.options.verbose = tt.verbose
 
 			testResult := r.runSingleTest(testFile, testFolder)
-			if !reflect.DeepEqual(testResult, tt.expectedTestResult) {
-				t.Fatalf("Expected: %v\nHave:     %v\n", tt.expectedTestResult, testResult)
+			if testResult.TestFile != tt.expectedTestResult.TestFile {
+				t.Fatalf(
+					"\nExpected TestFile: %v\nHave: %v\n",
+					tt.expectedTestResult.TestFile, testResult.TestFile)
+			}
+			if testResult.Success != tt.expectedTestResult.Success {
+				t.Fatalf("\nExpected Success: %v\nHave: %v\n",
+					tt.expectedTestResult.Success, testResult.Success)
+			}
+			if testResult.ExitCode != tt.expectedTestResult.ExitCode {
+				t.Fatalf("\nExpected ExitCode: %v\nHave: %v\n",
+					tt.expectedTestResult.ExitCode, testResult.ExitCode)
 			}
 
 			stdoutBytes, err := ioutil.ReadAll(stdout)
@@ -478,67 +490,90 @@ func TestRunSingleTestTimeout(t *testing.T) {
 }
 
 func TestPrintVerboseSingleTestResult(t *testing.T) {
-	type testInfo struct {
+	tests := []struct {
+		title          string
 		success        bool
 		json           bool
 		verbose        bool
+		resultOutput   io.Reader
 		expectedStdout string
 		expectedStderr string
-	}
-	testData := []testInfo{
+	}{
 		{
+			title:          "Case #1",
 			success:        true,
 			json:           false,
 			verbose:        false,
-			expectedStdout: "",
-			expectedStderr: "",
-		},
-		{
-			success:        true,
-			json:           false,
-			verbose:        true,
+			resultOutput:   bytes.NewBufferString("something in the output"),
 			expectedStdout: color.GreenString("OK\n"),
 			expectedStderr: "",
 		},
 		{
+			title:          "Case #2",
+			success:        true,
+			json:           false,
+			verbose:        true,
+			resultOutput:   bytes.NewBufferString("something in the output"),
+			expectedStdout: color.GreenString("OK\n"),
+			expectedStderr: "",
+		},
+		{
+			title:          "Case #3",
 			success:        false,
 			json:           true,
 			verbose:        false,
+			resultOutput:   bytes.NewBufferString("something in the output"),
 			expectedStdout: "",
 			expectedStderr: "",
 		},
 		{
+			title:          "Case #4",
 			success:        false,
 			json:           false,
 			verbose:        true,
+			resultOutput:   bytes.NewBufferString("something in the output"),
 			expectedStdout: "",
 			expectedStderr: color.New(color.FgRed, color.Bold).SprintfFunc()("FAILED\n"),
 		},
+		{
+			title:          "Case #5",
+			success:        false,
+			json:           false,
+			verbose:        false,
+			resultOutput:   bytes.NewBufferString("something in the output"),
+			expectedStdout: "",
+			expectedStderr: color.New(color.FgRed, color.Bold).SprintfFunc()(
+				"FAILED\n" +
+					"Test output:\n" +
+					"something in the output"),
+		},
 	}
 
-	// When we move to go1.7 we can do subtests
-	for _, sample := range testData {
-		result := TestResult{
-			Success: sample.success,
-		}
-		r, stdout, stderr := setupDefaultRunner()
-		r.options.jsonOutput = sample.json
-		r.options.verbose = sample.verbose
-		r.printVerboseSingleTestResult(result)
-		stdoutBytes, err := ioutil.ReadAll(stdout)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if stdoutStr := string(stdoutBytes); stdoutStr != sample.expectedStdout {
-			t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", sample.expectedStdout, stdoutStr)
-		}
-		stderrBytes, err := ioutil.ReadAll(stderr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if stderrStr := string(stderrBytes); stderrStr != sample.expectedStderr {
-			t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", sample.expectedStderr, stderrStr)
-		}
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			result := TestResult{
+				Success: tt.success,
+				Output:  tt.resultOutput,
+			}
+			r, stdout, stderr := setupDefaultRunner()
+			r.options.jsonOutput = tt.json
+			r.options.verbose = tt.verbose
+			r.printVerboseSingleTestResult(result)
+			stdoutBytes, err := ioutil.ReadAll(stdout)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stdoutStr := string(stdoutBytes); stdoutStr != tt.expectedStdout {
+				t.Fatalf("Expected stdout:\n %q\n\nHave:\n %q\n", tt.expectedStdout, stdoutStr)
+			}
+			stderrBytes, err := ioutil.ReadAll(stderr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stderrStr := string(stderrBytes); stderrStr != tt.expectedStderr {
+				t.Fatalf("Expected stderr:\n %q\n\nHave:\n %q\n", tt.expectedStderr, stderrStr)
+			}
+		})
 	}
 }
 
