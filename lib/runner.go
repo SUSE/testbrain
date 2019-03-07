@@ -137,13 +137,11 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 
 	var foundTests []string
 	for _, testFolderOriginal := range r.options.testTargets {
-		var testFolder string
-		testFolder, err = filepath.Abs(testFolderOriginal)
+		testFolder, err := filepath.Abs(testFolderOriginal)
 		if err != nil {
 			return "", nil, fmt.Errorf("Error making %s absolute", testFolderOriginal)
 		}
-		var info os.FileInfo
-		info, err = os.Stat(testFolder)
+		info, err := os.Stat(testFolder)
 		if err != nil {
 			return "", nil, fmt.Errorf("Error reading test file %s: %s", testFolder, err)
 		}
