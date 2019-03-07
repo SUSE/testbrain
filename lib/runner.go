@@ -14,6 +14,10 @@ import (
 	"time"
 )
 
+const (
+	unknownExitCode = -1
+)
+
 // RunnerOptions represents options passed to the Runner.
 type RunnerOptions struct {
 	testTargets  []string
@@ -265,7 +269,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	if err != nil {
 		fmt.Fprintf(r.stderr, "Test failed: %v", err)
 		testResult.Success = false
-		testResult.ExitCode = -1
+		testResult.ExitCode = unknownExitCode
 		return testResult
 	}
 
@@ -281,13 +285,13 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 		command.Process.Kill()
 		fmt.Fprintf(r.stderr, "Killed by testbrain: Timed out after %v\n", r.options.timeout)
 		testResult.Success = false
-		testResult.ExitCode = -1
+		testResult.ExitCode = unknownExitCode
 	case err = <-done:
 		testResult.ExitCode, err = r.getErrorCode(err, command)
 		if err != nil {
 			fmt.Fprintf(r.stderr, "Test failed: %v", err)
 			testResult.Success = false
-			testResult.ExitCode = -1
+			testResult.ExitCode = unknownExitCode
 			return testResult
 		}
 		testResult.Success = command.ProcessState.Success()
@@ -313,11 +317,11 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 
 		// There is an error but it's not an ExitError.
 		// Something other than the test script failed, bubble up the error.
-		return -1, err
+		return unknownExitCode, err
 	}
 
 	// The test script failed, but without an error.
-	return -1, nil
+	return unknownExitCode, nil
 }
 
 func (r *Runner) printVerboseSingleTestResult(result TestResult) {
@@ -362,7 +366,7 @@ func (r *Runner) outputResults() {
 func (r *Runner) outputResultsJSON() {
 	displayedSeed := r.options.randomSeed
 	if r.options.inOrder {
-		displayedSeed = -1
+		displayedSeed = unknownExitCode
 	}
 	nbTestsFailed := len(r.failedTestResults)
 	nbTestsPassed := len(r.testResults) - nbTestsFailed

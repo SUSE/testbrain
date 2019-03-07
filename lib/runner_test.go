@@ -429,7 +429,7 @@ func TestRunSingleTestTimeout(t *testing.T) {
 			expectedTestResult: TestResult{
 				TestFile: testFile,
 				Success:  false,
-				ExitCode: -1,
+				ExitCode: unknownExitCode,
 			},
 			expectedStdout: "Timeout = 1\n" +
 				"Long running process...\n",
@@ -441,7 +441,7 @@ func TestRunSingleTestTimeout(t *testing.T) {
 			expectedTestResult: TestResult{
 				TestFile: testFile,
 				Success:  false,
-				ExitCode: -1,
+				ExitCode: unknownExitCode,
 			},
 			expectedStdout: "",
 			expectedStderr: "Killed by testbrain: Timed out after 1s\n",
