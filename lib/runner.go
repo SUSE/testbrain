@@ -388,3 +388,11 @@ func (r *Runner) outputResultsJSON() {
 		fmt.Fprintln(r.stderr, RedBold("Error trying to marshal JSON output"))
 	}
 }
+
+// TestResult contains the result of a single test script.
+type TestResult struct {
+	TestFile string    `json:"filename"`
+	Success  bool      `json:"success"`
+	ExitCode int       `json:"exitcode"`
+	Output   io.Reader `json:"-"`
+}
