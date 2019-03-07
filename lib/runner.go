@@ -20,40 +20,15 @@ const (
 
 // RunnerOptions represents options passed to the Runner.
 type RunnerOptions struct {
-	testTargets  []string
-	includeReStr string
-	excludeReStr string
-	timeout      time.Duration
-	inOrder      bool
-	randomSeed   int64
-	jsonOutput   bool
-	verbose      bool
-	dryRun       bool
-}
-
-// NewRunnerOptions constructs a new RunnerOptions.
-func NewRunnerOptions(
-	testTargets []string,
-	includeReStr string,
-	excludeReStr string,
-	timeout time.Duration,
-	inOrder bool,
-	randomSeed int64,
-	jsonOutput bool,
-	verbose bool,
-	dryRun bool,
-) *RunnerOptions {
-	return &RunnerOptions{
-		testTargets,
-		includeReStr,
-		excludeReStr,
-		timeout,
-		inOrder,
-		randomSeed,
-		jsonOutput,
-		verbose,
-		dryRun,
-	}
+	TestTargets  []string
+	IncludeReStr string
+	ExcludeReStr string
+	Timeout      time.Duration
+	InOrder      bool
+	RandomSeed   int64
+	JSONOutput   bool
+	Verbose      bool
+	DryRun       bool
 }
 
 // Runner runs a series of tests and displays its results.
@@ -61,7 +36,7 @@ type Runner struct {
 	stderr io.Writer
 	stdout io.Writer
 
-	options *RunnerOptions
+	options RunnerOptions
 
 	testResults       []TestResult
 	failedTestResults []TestResult
@@ -71,7 +46,7 @@ type Runner struct {
 func NewRunner(
 	stdout io.Writer,
 	stderr io.Writer,
-	options *RunnerOptions,
+	options RunnerOptions,
 ) *Runner {
 	return &Runner{
 		stdout:  stdout,
@@ -87,14 +62,14 @@ func (r *Runner) RunCommand() error {
 	if err != nil {
 		return err
 	}
-	if !r.options.jsonOutput {
+	if !r.options.JSONOutput {
 		fmt.Fprintf(r.stdout, "Found %d test files\n", len(testFiles))
-		if !r.options.inOrder {
-			fmt.Fprintf(r.stdout, "Using seed: %d\n", r.options.randomSeed)
+		if !r.options.InOrder {
+			fmt.Fprintf(r.stdout, "Using seed: %d\n", r.options.RandomSeed)
 		}
 	}
-	if r.options.dryRun {
-		if !r.options.jsonOutput {
+	if r.options.DryRun {
+		if !r.options.JSONOutput {
 			fmt.Fprintf(r.stdout, "Test root: %s\n", testRoot)
 			fmt.Fprintf(r.stdout, "Test files:\n")
 			for _, testFile := range testFiles {
@@ -106,7 +81,7 @@ func (r *Runner) RunCommand() error {
 
 	r.runAllTests(testFiles, testRoot)
 	r.collectFailedTestResults()
-	if r.options.jsonOutput {
+	if r.options.JSONOutput {
 		r.outputResultsJSON()
 	} else {
 		r.outputResults()
@@ -123,24 +98,24 @@ func (r *Runner) getTestScriptsWithOrder() (string, []string, error) {
 		return "", nil, err
 	}
 	sort.Strings(testFiles)
-	if !r.options.inOrder {
+	if !r.options.InOrder {
 		r.shuffleOrder(testFiles)
 	}
 	return testRoot, testFiles, err
 }
 
 func (r *Runner) getTestScripts() (string, []string, error) {
-	includeRe, err := regexp.Compile(r.options.includeReStr)
+	includeRe, err := regexp.Compile(r.options.IncludeReStr)
 	if err != nil {
 		return "", nil, fmt.Errorf("Error parsing files to include: %s", err)
 	}
-	excludeRe, err := regexp.Compile(r.options.excludeReStr)
+	excludeRe, err := regexp.Compile(r.options.ExcludeReStr)
 	if err != nil {
 		return "", nil, fmt.Errorf("Error parsing files to exclude: %s", err)
 	}
 
 	var foundTests []string
-	for _, testFolderOriginal := range r.options.testTargets {
+	for _, testFolderOriginal := range r.options.TestTargets {
 		testFolder, err := filepath.Abs(testFolderOriginal)
 		if err != nil {
 			return "", nil, fmt.Errorf("Error making %s absolute", testFolderOriginal)
@@ -182,7 +157,7 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 	}
 
 	var commonPrefix string
-	if len(r.options.testTargets) > 1 {
+	if len(r.options.TestTargets) > 1 {
 		if len(foundTests) != 1 {
 			// None or more than one test found.
 			commonPrefix, err = CommonPathPrefix(foundTests)
@@ -197,9 +172,9 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 	} else {
 		// Only one test folder given; use it as the prefix; unless it's a file,
 		// then in which case use its directory.
-		testFolder, err := filepath.Abs(r.options.testTargets[0])
+		testFolder, err := filepath.Abs(r.options.TestTargets[0])
 		if err != nil {
-			return "", nil, fmt.Errorf("Error finding absolute path of %s: %s", r.options.testTargets[0], err)
+			return "", nil, fmt.Errorf("Error finding absolute path of %s: %s", r.options.TestTargets[0], err)
 		}
 		info, err := os.Stat(testFolder)
 		if err != nil {
@@ -222,7 +197,7 @@ func (r *Runner) getTestScripts() (string, []string, error) {
 }
 
 func (r *Runner) shuffleOrder(list []string) {
-	rand.Seed(r.options.randomSeed)
+	rand.Seed(r.options.RandomSeed)
 	// See https://en.wikipedia.org/wiki/Fisher–Yates_shuffle#The_modern_algorithm.
 	for i := len(list) - 1; i >= 1; i-- {
 		source := rand.Intn(i + 1)
@@ -232,7 +207,7 @@ func (r *Runner) shuffleOrder(list []string) {
 
 func (r *Runner) runAllTests(testFiles []string, testFolder string) {
 	for i, testFile := range testFiles {
-		if !r.options.jsonOutput {
+		if !r.options.JSONOutput {
 			fmt.Fprintf(r.stdout, "Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
 		result := r.runSingleTest(testFile, testFolder)
@@ -250,7 +225,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 		TestFile: testFile,
 	}
 
-	if r.options.verbose {
+	if r.options.Verbose {
 		command.Stdout = r.stdout
 		command.Stderr = r.stderr
 	} else {
@@ -262,7 +237,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 
 	// Propagate timeout information from brain to script, via the environment of the script.
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("TESTBRAIN_TIMEOUT=%v", r.options.timeout.Seconds()))
+	env = append(env, fmt.Sprintf("TESTBRAIN_TIMEOUT=%v", r.options.Timeout.Seconds()))
 	command.Env = env
 
 	err := command.Start()
@@ -278,12 +253,12 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 		done <- command.Wait()
 	}()
 
-	timeout := time.After(r.options.timeout)
+	timeout := time.After(r.options.Timeout)
 
 	select {
 	case <-timeout:
 		command.Process.Kill()
-		fmt.Fprintf(r.stderr, "Killed by testbrain: Timed out after %v\n", r.options.timeout)
+		fmt.Fprintf(r.stderr, "Killed by testbrain: Timed out after %v\n", r.options.Timeout)
 		testResult.Success = false
 		testResult.ExitCode = unknownExitCode
 	case err = <-done:
@@ -325,12 +300,12 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 }
 
 func (r *Runner) printVerboseSingleTestResult(result TestResult) {
-	if !r.options.jsonOutput {
+	if !r.options.JSONOutput {
 		if result.Success {
 			fmt.Fprintf(r.stdout, "%s: %s\n", Green("PASSED"), result.TestFile)
 		} else {
 			fmt.Fprintf(r.stderr, "%s: %s\n", RedBold("FAILED"), result.TestFile)
-			if !r.options.verbose {
+			if !r.options.Verbose {
 				fmt.Fprintln(r.stderr, "Test output:")
 				io.Copy(r.stderr, result.Output)
 			}
@@ -358,14 +333,14 @@ func (r *Runner) outputResults() {
 	} else {
 		fmt.Fprintln(r.stdout, GreenBold(summaryString))
 	}
-	if !r.options.inOrder {
-		fmt.Fprintf(r.stdout, "Seed used: %d\n", r.options.randomSeed)
+	if !r.options.InOrder {
+		fmt.Fprintf(r.stdout, "Seed used: %d\n", r.options.RandomSeed)
 	}
 }
 
 func (r *Runner) outputResultsJSON() {
-	displayedSeed := r.options.randomSeed
-	if r.options.inOrder {
+	displayedSeed := r.options.RandomSeed
+	if r.options.InOrder {
 		displayedSeed = unknownExitCode
 	}
 	nbTestsFailed := len(r.failedTestResults)
@@ -382,7 +357,7 @@ func (r *Runner) outputResultsJSON() {
 		Passed:     nbTestsPassed,
 		Failed:     nbTestsFailed,
 		Seed:       displayedSeed,
-		InOrder:    r.options.inOrder,
+		InOrder:    r.options.InOrder,
 		FailedList: r.failedTestResults,
 	}
 
