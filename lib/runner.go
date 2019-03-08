@@ -18,7 +18,8 @@ import (
 )
 
 const (
-	unknownExitCode = -1
+	unknownExitCode  = -1
+	skipTestExitCode = 200
 )
 
 var (
@@ -281,6 +282,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 			testResult.ExitCode = unknownExitCode
 			return testResult
 		}
+		testResult.Skipped = (testResult.ExitCode == skipTestExitCode)
 		testResult.Success = command.ProcessState.Success()
 	}
 
@@ -313,7 +315,9 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 
 func (r *Runner) printVerboseSingleTestResult(result TestResult) {
 	if !r.options.JSONOutput {
-		if result.Success {
+		if result.Skipped {
+			fmt.Fprintf(r.stdout, "%s: %s\n", yellowBold("SKIPPED"), result.TestFile)
+		} else if result.Success {
 			fmt.Fprintf(r.stdout, "%s: %s\n", greenBold("PASSED"), result.TestFile)
 		} else {
 			fmt.Fprintf(r.stderr, "%s: %s\n", redBold("FAILED"), result.TestFile)
@@ -327,7 +331,7 @@ func (r *Runner) printVerboseSingleTestResult(result TestResult) {
 
 func (r *Runner) collectFailedTestResults() {
 	for _, result := range r.testResults {
-		if !result.Success {
+		if !result.Success && !result.Skipped {
 			r.failedTestResults = append(r.failedTestResults, result)
 		}
 	}
@@ -337,9 +341,19 @@ func (r *Runner) outputResults() {
 	for _, failedResult := range r.failedTestResults {
 		fmt.Fprintf(r.stderr, redBold("%s: Failed with exit code %d\n", failedResult.TestFile, failedResult.ExitCode))
 	}
+	var nbTestsPassed uint16
+	var nbTestsSkipped uint16
+	for _, result := range r.testResults {
+		if result.Skipped {
+			nbTestsSkipped++
+		} else if result.Success {
+			nbTestsPassed++
+		}
+	}
 	nbTestsFailed := len(r.failedTestResults)
-	nbTestsPassed := len(r.testResults) - nbTestsFailed
-	summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", nbTestsPassed, nbTestsFailed)
+	summaryString := fmt.Sprintf(
+		"\nTests complete: %d Passed, %d Skipped, %d Failed",
+		nbTestsPassed, nbTestsSkipped, nbTestsFailed)
 	if nbTestsFailed > 0 {
 		fmt.Fprintln(r.stderr, redBold(summaryString))
 	} else {
@@ -384,6 +398,7 @@ func (r *Runner) outputResultsJSON() {
 type TestResult struct {
 	TestFile string    `json:"filename"`
 	Success  bool      `json:"success"`
+	Skipped  bool      `json:"skipped"`
 	ExitCode int       `json:"exitcode"`
 	Output   io.Reader `json:"-"`
 }
