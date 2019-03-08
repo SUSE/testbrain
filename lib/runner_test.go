@@ -37,8 +37,6 @@ func setupDefaultRunner() (*Runner, io.ReadWriter, io.ReadWriter) {
 	var stdout concurrentBuffer
 	var stderr concurrentBuffer
 	runner := NewRunner(
-		// io.MultiWriter(&stdout, os.Stdout),
-		// io.MultiWriter(&stderr, os.Stderr),
 		&stdout,
 		&stderr,
 		options,
