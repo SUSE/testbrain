@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 OSES="linux darwin"
 
@@ -7,12 +7,12 @@ OSES="linux darwin"
 
 set -o errexit
 
-echo "${OK_COLOR}==> Building ${ERROR_COLOR}"
+echo -e "${OK_COLOR}==> Building ${ERROR_COLOR}"
 
 for OS in ${OSES}; do \
 		 env GOOS=${OS} GOARCH=amd64 go build -o build/${OS}-amd64/$ARTIFACT_NAME \
 		 -ldflags="-X main.version=${APP_VERSION}" \
-		 ./  
+		 ./
 done
 
 #windows is special
@@ -20,4 +20,4 @@ env GOOS=windows GOARCH=amd64 go build -o build/windows-amd64/$ARTIFACT_NAME.exe
 -ldflags="-X main.version=${APP_VERSION}" \
 ./
 
-echo "${NO_COLOR}\c"
+echo -e "${NO_COLOR}\c"

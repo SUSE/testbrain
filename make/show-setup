@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 OSES="linux darwin"
 
@@ -7,7 +7,7 @@ set -o errexit
 . make/include/colors.sh
 . make/include/versioning.sh
 
-echo "${OK_COLOR}==> Configuration ${ERROR_COLOR}"
+echo -e "${OK_COLOR}==> Configuration ${ERROR_COLOR}"
 
 echo ROOT..... $GIT_ROOT
 echo DESCRIBE. $GIT_DESCRIBE

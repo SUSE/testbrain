@@ -1,11 +1,11 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 set -o errexit
 
 . make/include/colors.sh
 
-echo "${OK_COLOR}==> Vetting${ERROR_COLOR}"
+echo -e "${OK_COLOR}==> Vetting${ERROR_COLOR}"
 
-go vet $(go list -f '{{ .ImportPath }}' ./... | sed '/\/vendor\//d')
+go vet "$(go list -f '{{ .ImportPath }}' ./... | sed '/\/vendor\//d')"
 
-echo "${NO_COLOR}\c"
+echo -e "${NO_COLOR}\c"
