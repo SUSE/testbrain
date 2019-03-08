@@ -37,6 +37,8 @@ func setupDefaultRunner() (*Runner, io.ReadWriter, io.ReadWriter) {
 	var stdout concurrentBuffer
 	var stderr concurrentBuffer
 	runner := NewRunner(
+		// io.MultiWriter(&stdout, os.Stdout),
+		// io.MultiWriter(&stderr, os.Stderr),
 		&stdout,
 		&stderr,
 		options,
@@ -92,7 +94,7 @@ func TestGetTestScripts(t *testing.T) {
 	}
 	expected := []string{"000_script_test.sh", "001_script_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -113,7 +115,7 @@ func TestGetTestScripts_IncludeFilters(t *testing.T) {
 	}
 	expected := []string{"000_script_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -139,7 +141,7 @@ func TestGetTestScripts_IncludeFiltersMultiFolder(t *testing.T) {
 		"testfolder3-many-tests/000_script_test.sh",
 	}
 	if !reflect.DeepEqual(testScripts, expected) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -160,7 +162,7 @@ func TestGetTestScripts_IncludeFiltersNoMatch(t *testing.T) {
 	}
 
 	if len(testScripts) > 0 {
-		t.Errorf("Expected: []\nHave:     %v\n", testScripts)
+		t.Errorf("\nExpected:\n[]\nHave:\n%v\n", testScripts)
 	}
 }
 
@@ -182,7 +184,7 @@ func TestGetTestScripts_IncludeFiltersMultiFolderNoMatch(t *testing.T) {
 		t.Errorf("Test root '%s' was not '%s'", testRoot, expectedRoot)
 	}
 	if len(testScripts) > 0 {
-		t.Errorf("Expected: []\nHave:     %v\n", testScripts)
+		t.Errorf("\nExpected:\n[]\nHave:\n%v\n", testScripts)
 	}
 }
 
@@ -203,7 +205,7 @@ func TestGetTestScripts_ExcludeFilters(t *testing.T) {
 	}
 	expected := []string{"000_script_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -223,7 +225,7 @@ func TestGetTestScripts_NestedDirectories(t *testing.T) {
 	}
 	expected := []string{"nested_directory/test_file_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -244,7 +246,7 @@ func TestGetTestScripts_OnlyOneFile(t *testing.T) {
 	}
 	expected := []string{"hello_world_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
-		t.Errorf("Expected: %v\nHave:      %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -269,7 +271,7 @@ func TestGetTestScripts_NotIncludedExplicit(t *testing.T) {
 	}
 	expected := []string{"000_script_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -294,7 +296,7 @@ func TestGetTestScripts_OnlyOneResult(t *testing.T) {
 	}
 	expected := []string{"000_script_test.sh"}
 	if !reflect.DeepEqual(testScripts, expected) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -332,7 +334,7 @@ func TestGetTestScriptsWithOrder_SpecificSeed(t *testing.T) {
 	}
 	expected := []string{"001_script_test.sh", "004_script_test.sh", "002_script_test.sh", "003_script_test.sh", "000_script_test.sh"}
 	if !reflect.DeepEqual(expected, testScripts) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -350,7 +352,7 @@ func TestGetTestScriptsWithOrder_InOrder(t *testing.T) {
 	}
 	expected := []string{"000_script_test.sh", "001_script_test.sh", "002_script_test.sh", "003_script_test.sh", "004_script_test.sh"}
 	if !reflect.DeepEqual(expected, testScripts) {
-		t.Errorf("Expected: %v\nHave:     %v\n", expected, testScripts)
+		t.Errorf("\nExpected:\n%v\nHave:\n%v\n", expected, testScripts)
 	}
 }
 
@@ -468,14 +470,14 @@ func TestRunSingleTestTimeout(t *testing.T) {
 				t.Fatal(err)
 			}
 			if stdoutStr := string(stdoutBytes); stdoutStr != tt.expectedStdout {
-				t.Errorf("Expected stdout:\n %q\n\nHave:\n %q\n", tt.expectedStdout, stdoutStr)
+				t.Errorf("\nExpected stdout:\n%q\n\nHave:\n%q\n", tt.expectedStdout, stdoutStr)
 			}
 			stderrBytes, err := ioutil.ReadAll(stderr)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if stderrStr := string(stderrBytes); stderrStr != tt.expectedStderr {
-				t.Errorf("Expected stderr:\n %q\n\nHave:\n %q\n", tt.expectedStderr, stderrStr)
+				t.Errorf("\nExpected stderr:\n%q\n\nHave:\n%q\n", tt.expectedStderr, stderrStr)
 			}
 		})
 	}
@@ -556,14 +558,14 @@ func TestPrintVerboseSingleTestResult(t *testing.T) {
 				t.Fatal(err)
 			}
 			if stdoutStr := string(stdoutBytes); stdoutStr != tt.expectedStdout {
-				t.Errorf("Expected stdout:\n %q\n\nHave:\n %q\n", tt.expectedStdout, stdoutStr)
+				t.Errorf("\nExpected stdout:\n%q\n\nHave:\n%q\n", tt.expectedStdout, stdoutStr)
 			}
 			stderrBytes, err := ioutil.ReadAll(stderr)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if stderrStr := string(stderrBytes); stderrStr != tt.expectedStderr {
-				t.Errorf("Expected stderr:\n %q\n\nHave:\n %q\n", tt.expectedStderr, stderrStr)
+				t.Errorf("\nExpected stderr:\n%q\n\nHave:\n%q\n", tt.expectedStderr, stderrStr)
 			}
 		})
 	}
@@ -579,20 +581,20 @@ func TestOutputResults(t *testing.T) {
 	expectedStdout := "Seed used: 42\n"
 	expectedStderr := redBoldString("testfile-failure-1: Failed with exit code 1\n") +
 		redBoldString("testfile-failure-2: Failed with exit code 2\n") +
-		redBoldString("\nTests complete: 2 Passed, 2 Failed\n")
+		redBoldString("\nTests complete: 2 Passed, 0 Skipped, 2 Failed\n")
 	stdoutBytes, err := ioutil.ReadAll(stdout)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if stdoutStr := string(stdoutBytes); stdoutStr != expectedStdout {
-		t.Errorf("Expected stdout:\n %q\n\nHave:\n %q\n", expectedStdout, stdoutStr)
+		t.Errorf("\nExpected stdout:\n%q\n\nHave:\n%q\n", expectedStdout, stdoutStr)
 	}
 	stderrBytes, err := ioutil.ReadAll(stderr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if stderrStr := string(stderrBytes); stderrStr != expectedStderr {
-		t.Errorf("Expected stderr:\n %q\n\nHave:\n %q\n", expectedStderr, stderrStr)
+		t.Errorf("\nExpected stderr:\n%q\n\nHave:\n%q\n", expectedStderr, stderrStr)
 	}
 }
 
@@ -605,8 +607,8 @@ func TestOutputResultsJSON(t *testing.T) {
 
 	r.outputResultsJSON()
 	expectedStdout := `{"passed":2,"failed":2,"seed":42,"inOrder":false,"failedList":[` +
-		`{"filename":"testfile-failure-1","success":false,"exitcode":1},` +
-		`{"filename":"testfile-failure-2","success":false,"exitcode":2}]}` +
+		`{"filename":"testfile-failure-1","success":false,"skipped":false,"exitcode":1},` +
+		`{"filename":"testfile-failure-2","success":false,"skipped":false,"exitcode":2}]}` +
 		"\n"
 	expectedStderr := ""
 	stdoutBytes, err := ioutil.ReadAll(stdout)
@@ -614,14 +616,14 @@ func TestOutputResultsJSON(t *testing.T) {
 		t.Fatal(err)
 	}
 	if stdoutStr := string(stdoutBytes); stdoutStr != expectedStdout {
-		t.Errorf("Expected stdout:\n %q\n\nHave:\n %q\n", expectedStdout, stdoutStr)
+		t.Errorf("\nExpected stdout:\n%q\n\nHave:\n%q\n", expectedStdout, stdoutStr)
 	}
 	stderrBytes, err := ioutil.ReadAll(stderr)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if stderrStr := string(stderrBytes); stderrStr != expectedStderr {
-		t.Errorf("Expected stderr:\n %q\n\nHave:\n %q\n", expectedStderr, stderrStr)
+		t.Errorf("\nExpected stderr:\n%q\n\nHave:\n%q\n", expectedStderr, stderrStr)
 	}
 }
 
@@ -633,6 +635,68 @@ func TestRunCommandSuccess(t *testing.T) {
 	err := r.RunCommand()
 	if err != nil {
 		t.Errorf("Didn't expect an error, got '%s'", err)
+	}
+}
+
+func TestRunCommandSkip(t *testing.T) {
+	testFolder, _ := filepath.Abs("../testdata/skip")
+
+	tests := []struct {
+		title          string
+		verbose        bool
+		expectedStdout string
+		expectedStderr string
+	}{
+		{
+			title:   "Verbose",
+			verbose: true,
+			expectedStdout: "Found 1 test files\n" +
+				"Using seed: 1552072438299530183\n" +
+				"Running test skip_test.sh (1/1)\n" +
+				"Something stdout\n" +
+				"SKIPPED: skip_test.sh\n\n" +
+				"Tests complete: 0 Passed, 1 Skipped, 0 Failed\n" +
+				"Seed used: 1552072438299530183\n",
+			expectedStderr: "Something stderr\n",
+		},
+		{
+			title:   "Non-verbose",
+			verbose: false,
+			expectedStdout: "Found 1 test files\n" +
+				"Using seed: 1552072438299530183\n" +
+				"Running test skip_test.sh (1/1)\n" +
+				"SKIPPED: skip_test.sh\n\n" +
+				"Tests complete: 0 Passed, 1 Skipped, 0 Failed\n" +
+				"Seed used: 1552072438299530183\n",
+			expectedStderr: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.title, func(t *testing.T) {
+			r, stdout, stderr := setupDefaultRunner()
+			r.options.RandomSeed = 1552072438299530183
+			r.options.Verbose = tt.verbose
+			r.options.TestTargets = []string{testFolder}
+			err := r.RunCommand()
+			if err != nil {
+				t.Errorf("Didn't expect an error, got '%s'", err)
+			}
+			stdoutBytes, err := ioutil.ReadAll(stdout)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stdoutStr := string(stdoutBytes); stdoutStr != tt.expectedStdout {
+				t.Errorf("\nExpected stdout:\n%q\n\nHave:\n%q\n", tt.expectedStdout, stdoutStr)
+			}
+			stderrBytes, err := ioutil.ReadAll(stderr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if stderrStr := string(stderrBytes); stderrStr != tt.expectedStderr {
+				t.Errorf("\nExpected stderr:\n%q\n\nHave:\n%q\n", tt.expectedStderr, stderrStr)
+			}
+		})
 	}
 }
 
