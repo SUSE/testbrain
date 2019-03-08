@@ -29,7 +29,7 @@ Global Flags:
 
 ## Marking tests as skipped
 
-Sometimes a test may be marked as skipped, which indicates it didn't fail neither succeeded. It may
+Sometimes a test may be marked as skipped, which indicates it neither failed nor succeeded. It may
 happen, e.g., when external dependencies are not satisfied.
 
 Any test that returns the status code `99` will be marked as skipped. It allows the test itself to
