@@ -19,7 +19,7 @@ import (
 
 const (
 	unknownExitCode  = -1
-	skipTestExitCode = 200
+	skipTestExitCode = 99
 )
 
 var (
