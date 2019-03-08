@@ -22,14 +22,11 @@ const (
 )
 
 var (
-	// Green is a convenient color helper.
-	Green = color.New(color.FgGreen).SprintfFunc()
-	// GreenBold is a convenient color helper.
-	GreenBold = color.New(color.FgGreen, color.Bold).SprintfFunc()
-	// Red is a convenient color helper.
-	Red = color.New(color.FgRed).SprintfFunc()
-	// RedBold is a convenient color helper.
-	RedBold = color.New(color.FgRed, color.Bold).SprintfFunc()
+	green      = color.New(color.FgGreen).SprintfFunc()
+	greenBold  = color.New(color.FgGreen, color.Bold).SprintfFunc()
+	yellowBold = color.New(color.FgYellow, color.Bold).SprintfFunc()
+	red        = color.New(color.FgRed).SprintfFunc()
+	redBold    = color.New(color.FgRed, color.Bold).SprintfFunc()
 )
 
 // RunnerOptions represents options passed to the Runner.
@@ -317,9 +314,9 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 func (r *Runner) printVerboseSingleTestResult(result TestResult) {
 	if !r.options.JSONOutput {
 		if result.Success {
-			fmt.Fprintf(r.stdout, "%s: %s\n", Green("PASSED"), result.TestFile)
+			fmt.Fprintf(r.stdout, "%s: %s\n", greenBold("PASSED"), result.TestFile)
 		} else {
-			fmt.Fprintf(r.stderr, "%s: %s\n", RedBold("FAILED"), result.TestFile)
+			fmt.Fprintf(r.stderr, "%s: %s\n", redBold("FAILED"), result.TestFile)
 			if !r.options.Verbose {
 				fmt.Fprintln(r.stderr, "Test output:")
 				io.Copy(r.stderr, result.Output)
@@ -338,15 +335,15 @@ func (r *Runner) collectFailedTestResults() {
 
 func (r *Runner) outputResults() {
 	for _, failedResult := range r.failedTestResults {
-		fmt.Fprintf(r.stderr, RedBold("%s: Failed with exit code %d\n", failedResult.TestFile, failedResult.ExitCode))
+		fmt.Fprintf(r.stderr, redBold("%s: Failed with exit code %d\n", failedResult.TestFile, failedResult.ExitCode))
 	}
 	nbTestsFailed := len(r.failedTestResults)
 	nbTestsPassed := len(r.testResults) - nbTestsFailed
 	summaryString := fmt.Sprintf("\nTests complete: %d Passed, %d Failed", nbTestsPassed, nbTestsFailed)
 	if nbTestsFailed > 0 {
-		fmt.Fprintln(r.stderr, RedBold(summaryString))
+		fmt.Fprintln(r.stderr, redBold(summaryString))
 	} else {
-		fmt.Fprintln(r.stdout, GreenBold(summaryString))
+		fmt.Fprintln(r.stdout, greenBold(summaryString))
 	}
 	if !r.options.InOrder {
 		fmt.Fprintf(r.stdout, "Seed used: %d\n", r.options.RandomSeed)
@@ -379,7 +376,7 @@ func (r *Runner) outputResultsJSON() {
 	jsonEncoder := json.NewEncoder(r.stdout)
 	err := jsonEncoder.Encode(jsonOutputStruct)
 	if err != nil {
-		fmt.Fprintln(r.stderr, RedBold("Error trying to marshal JSON output"))
+		fmt.Fprintln(r.stderr, redBold("Error trying to marshal JSON output"))
 	}
 }
 
