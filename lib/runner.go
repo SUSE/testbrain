@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -229,10 +230,10 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 		command.Stdout = r.stdout
 		command.Stderr = r.stderr
 	} else {
-		buf := NewConcurrentBuffer()
-		command.Stdout = buf
-		command.Stderr = buf
-		testResult.Output = buf
+		var buf bytes.Buffer
+		command.Stdout = &buf
+		command.Stderr = &buf
+		testResult.Output = &buf
 	}
 
 	// Propagate timeout information from brain to script, via the environment of the script.
@@ -251,6 +252,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	done := make(chan error)
 	go func() {
 		done <- command.Wait()
+		close(done)
 	}()
 
 	timeout := time.After(r.options.Timeout)

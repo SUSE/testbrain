@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,14 +34,14 @@ func setupDefaultRunner() (*Runner, io.ReadWriter, io.ReadWriter) {
 		Verbose:      false,
 		DryRun:       false,
 	}
-	stdout := NewConcurrentBuffer()
-	stderr := NewConcurrentBuffer()
+	var stdout concurrentBuffer
+	var stderr concurrentBuffer
 	runner := NewRunner(
-		stdout,
-		stderr,
+		&stdout,
+		&stderr,
 		options,
 	)
-	return runner, stdout, stderr
+	return runner, &stdout, &stderr
 }
 
 func setupTestResults() []TestResult {
@@ -644,4 +645,21 @@ func TestRunCommandFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected to get an error, got 'nil'")
 	}
+}
+
+type concurrentBuffer struct {
+	mutex sync.Mutex
+	buf   bytes.Buffer
+}
+
+func (crw *concurrentBuffer) Read(p []byte) (int, error) {
+	crw.mutex.Lock()
+	defer crw.mutex.Unlock()
+	return crw.buf.Read(p)
+}
+
+func (crw *concurrentBuffer) Write(b []byte) (int, error) {
+	crw.mutex.Lock()
+	defer crw.mutex.Unlock()
+	return crw.buf.Write(b)
 }
