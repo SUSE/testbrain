@@ -76,9 +76,6 @@ func (r *Runner) RunCommand() error {
 	}
 	if !r.options.JSONOutput {
 		fmt.Fprintf(r.stdout, "Found %d test files\n", len(testFiles))
-		if !r.options.InOrder {
-			fmt.Fprintf(r.stdout, "Using seed: %d\n", r.options.RandomSeed)
-		}
 	}
 	if r.options.DryRun {
 		if !r.options.JSONOutput {
@@ -358,9 +355,6 @@ func (r *Runner) outputResults() {
 		fmt.Fprintln(r.stderr, redBold(summaryString))
 	} else {
 		fmt.Fprintln(r.stdout, greenBold(summaryString))
-	}
-	if !r.options.InOrder {
-		fmt.Fprintf(r.stdout, "Seed used: %d\n", r.options.RandomSeed)
 	}
 }
 
