@@ -49,9 +49,6 @@ type Runner struct {
 	stdout io.Writer
 
 	options RunnerOptions
-
-	testResults       []TestResult
-	failedTestResults []TestResult
 }
 
 // NewRunner constructs a new Runner.
@@ -88,17 +85,16 @@ func (r *Runner) RunCommand() error {
 		return nil
 	}
 
-	r.runAllTests(testFiles, testRoot)
-	r.collectFailedTestResults()
+	passedResults, skippedResults, failedResults := r.runAllTests(testFiles, testRoot)
 	if r.options.JSONOutput {
-		r.outputResultsJSON()
+		r.outputResultsJSON(passedResults, skippedResults, failedResults)
 	} else {
-		r.outputResults()
+		r.outputResults(passedResults, skippedResults, failedResults)
 	}
-	if len(r.failedTestResults) == 0 {
+	if len(failedResults) == 0 {
 		return nil
 	}
-	return fmt.Errorf("%d tests failed", len(r.failedTestResults))
+	return fmt.Errorf("%d tests failed", len(failedResults))
 }
 
 func (r *Runner) getTestScriptsWithOrder() (string, []string, error) {
@@ -214,35 +210,56 @@ func (r *Runner) shuffleOrder(list []string) {
 	}
 }
 
-func (r *Runner) runAllTests(testFiles []string, testFolder string) {
+func (r *Runner) runAllTests(testFiles []string, testFolder string) ([]PassedResult, []SkippedResult, []FailedResult) {
+	passedResults := make([]PassedResult, 0)
+	skippedResults := make([]SkippedResult, 0)
+	failedResults := make([]FailedResult, 0)
 	for i, testFile := range testFiles {
 		if !r.options.JSONOutput {
 			fmt.Fprintf(r.stdout, "Running test %s (%d/%d)\n", testFile, i+1, len(testFiles))
 		}
-		result := r.runSingleTest(testFile, testFolder)
-		r.printVerboseSingleTestResult(result)
-		r.testResults = append(r.testResults, result)
+
+		var cmdStdout, cmdStderr io.Writer
+		var outputBuf bytes.Buffer
+		if r.options.Verbose {
+			cmdStdout = r.stdout
+			cmdStderr = r.stderr
+		} else {
+			cmdStdout = &outputBuf
+			cmdStderr = &outputBuf
+		}
+		exitCode := r.runSingleTest(testFile, testFolder, cmdStdout, cmdStderr)
+
+		if exitCode == skipTestExitCode {
+			result := SkippedResult{testFile}
+			skippedResults = append(skippedResults, result)
+			fmt.Fprintln(r.stdout, result)
+		} else if exitCode == 0 {
+			result := PassedResult{testFile}
+			passedResults = append(passedResults, result)
+			fmt.Fprintln(r.stdout, result)
+		} else {
+			result := FailedResult{
+				TestResult{testFile},
+				exitCode,
+			}
+			failedResults = append(failedResults, result)
+			fmt.Fprintln(r.stdout, result)
+			if !r.options.Verbose {
+				fmt.Fprintln(r.stdout, "Test output:")
+				io.Copy(r.stdout, &outputBuf)
+			}
+		}
 	}
+	return passedResults, skippedResults, failedResults
 }
 
-func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
+func (r *Runner) runSingleTest(testFile string, testFolder string, cmdStdout, cmdStderr io.Writer) (exitCode int) {
 	testPath := filepath.Join(testFolder, testFile)
 
 	command := exec.Command(testPath)
-
-	testResult := TestResult{
-		TestFile: testFile,
-	}
-
-	if r.options.Verbose {
-		command.Stdout = r.stdout
-		command.Stderr = r.stderr
-	} else {
-		var buf bytes.Buffer
-		command.Stdout = &buf
-		command.Stderr = &buf
-		testResult.Output = &buf
-	}
+	command.Stdout = cmdStdout
+	command.Stderr = cmdStderr
 
 	// Propagate timeout information from brain to script, via the environment of the script.
 	env := os.Environ()
@@ -252,9 +269,7 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	err := command.Start()
 	if err != nil {
 		fmt.Fprintf(r.stderr, "Test failed: %v", err)
-		testResult.Success = false
-		testResult.ExitCode = unknownExitCode
-		return testResult
+		return unknownExitCode
 	}
 
 	done := make(chan error)
@@ -269,21 +284,15 @@ func (r *Runner) runSingleTest(testFile string, testFolder string) TestResult {
 	case <-timeout:
 		command.Process.Kill()
 		fmt.Fprintf(r.stderr, "Killed by testbrain: Timed out after %v\n", r.options.Timeout)
-		testResult.Success = false
-		testResult.ExitCode = unknownExitCode
+		return unknownExitCode
 	case err = <-done:
-		testResult.ExitCode, err = r.getErrorCode(err, command)
+		exitCode, err = r.getErrorCode(err, command)
 		if err != nil {
 			fmt.Fprintf(r.stderr, "Test failed: %v", err)
-			testResult.Success = false
-			testResult.ExitCode = unknownExitCode
-			return testResult
+			return
 		}
-		testResult.Skipped = (testResult.ExitCode == skipTestExitCode)
-		testResult.Success = command.ProcessState.Success()
 	}
-
-	return testResult
+	return
 }
 
 func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
@@ -310,75 +319,58 @@ func (r *Runner) getErrorCode(err error, command *exec.Cmd) (int, error) {
 	return unknownExitCode, nil
 }
 
-func (r *Runner) printVerboseSingleTestResult(result TestResult) {
-	if !r.options.JSONOutput {
-		if result.Skipped {
-			fmt.Fprintf(r.stdout, "%s: %s\n", yellowBold("SKIPPED"), result.TestFile)
-		} else if result.Success {
-			fmt.Fprintf(r.stdout, "%s: %s\n", greenBold("PASSED"), result.TestFile)
-		} else {
-			fmt.Fprintf(r.stderr, "%s: %s\n", redBold("FAILED"), result.TestFile)
-			if !r.options.Verbose {
-				fmt.Fprintln(r.stderr, "Test output:")
-				io.Copy(r.stderr, result.Output)
-			}
-		}
-	}
-}
-
-func (r *Runner) collectFailedTestResults() {
-	for _, result := range r.testResults {
-		if !result.Success && !result.Skipped {
-			r.failedTestResults = append(r.failedTestResults, result)
-		}
-	}
-}
-
-func (r *Runner) outputResults() {
-	for _, failedResult := range r.failedTestResults {
-		fmt.Fprintf(r.stderr, redBold("%s: Failed with exit code %d\n", failedResult.TestFile, failedResult.ExitCode))
-	}
-	var nbTestsPassed uint16
-	var nbTestsSkipped uint16
-	for _, result := range r.testResults {
-		if result.Skipped {
-			nbTestsSkipped++
-		} else if result.Success {
-			nbTestsPassed++
-		}
-	}
-	nbTestsFailed := len(r.failedTestResults)
+func (r *Runner) outputResults(passedResults []PassedResult, skippedResults []SkippedResult, failedResults []FailedResult) {
 	summaryString := fmt.Sprintf(
-		"\nTests complete: %d Passed, %d Skipped, %d Failed",
-		nbTestsPassed, nbTestsSkipped, nbTestsFailed)
-	if nbTestsFailed > 0 {
-		fmt.Fprintln(r.stderr, redBold(summaryString))
+		"Tests complete: %d Passed, %d Skipped, %d Failed",
+		len(passedResults), len(skippedResults), len(failedResults))
+	if len(failedResults) > 0 {
+		fmt.Fprintf(r.stdout, "%s\n\n", redBold(summaryString))
 	} else {
-		fmt.Fprintln(r.stdout, greenBold(summaryString))
+		fmt.Fprintf(r.stdout, "%s\n\n", greenBold(summaryString))
+	}
+
+	if len(skippedResults) > 0 {
+		fmt.Fprintln(r.stdout, "  Skipped tests:")
+		for _, result := range skippedResults {
+			fmt.Fprintf(r.stdout, "    %s\n", result.TestFile)
+		}
+		fmt.Fprintf(r.stdout, "\n")
+	}
+
+	if len(failedResults) > 0 {
+		fmt.Fprintln(r.stdout, "  Failed tests:")
+		for _, result := range failedResults {
+			fmt.Fprintf(r.stdout, "    %s with exit code %d\n", result.TestFile, result.ExitCode)
+		}
+		fmt.Fprintf(r.stdout, "\n")
 	}
 }
 
-func (r *Runner) outputResultsJSON() {
+func (r *Runner) outputResultsJSON(passedResults []PassedResult, skippedResults []SkippedResult, failedResults []FailedResult) {
 	displayedSeed := r.options.RandomSeed
 	if r.options.InOrder {
 		displayedSeed = unknownExitCode
 	}
-	nbTestsFailed := len(r.failedTestResults)
-	nbTestsPassed := len(r.testResults) - nbTestsFailed
 
 	// This is the only place where we need this struct, so anonymous struct seems appropriate.
 	jsonOutputStruct := struct {
-		Passed     int          `json:"passed"`
-		Failed     int          `json:"failed"`
-		Seed       int64        `json:"seed"`
-		InOrder    bool         `json:"inOrder"`
-		FailedList []TestResult `json:"failedList"`
+		Passed      int             `json:"passed"`
+		Skipped     int             `json:"skipped"`
+		Failed      int             `json:"failed"`
+		Seed        int64           `json:"seed"`
+		InOrder     bool            `json:"inOrder"`
+		PassedList  []PassedResult  `json:"passedList"`
+		SkippedList []SkippedResult `json:"skippedList"`
+		FailedList  []FailedResult  `json:"failedList"`
 	}{
-		Passed:     nbTestsPassed,
-		Failed:     nbTestsFailed,
-		Seed:       displayedSeed,
-		InOrder:    r.options.InOrder,
-		FailedList: r.failedTestResults,
+		Passed:      len(passedResults),
+		Skipped:     len(skippedResults),
+		Failed:      len(failedResults),
+		Seed:        displayedSeed,
+		InOrder:     r.options.InOrder,
+		PassedList:  passedResults,
+		SkippedList: skippedResults,
+		FailedList:  failedResults,
 	}
 
 	jsonEncoder := json.NewEncoder(r.stdout)
@@ -390,9 +382,29 @@ func (r *Runner) outputResultsJSON() {
 
 // TestResult contains the result of a single test script.
 type TestResult struct {
-	TestFile string    `json:"filename"`
-	Success  bool      `json:"success"`
-	Skipped  bool      `json:"skipped"`
-	ExitCode int       `json:"exitcode"`
-	Output   io.Reader `json:"-"`
+	TestFile string `json:"filename"`
+}
+
+// PassedResult is a type for a test result that passed.
+type PassedResult TestResult
+
+func (result PassedResult) String() string {
+	return fmt.Sprintf("%s: %s\n", greenBold("PASSED"), result.TestFile)
+}
+
+// SkippedResult is a type for a test result that skipped.
+type SkippedResult TestResult
+
+func (result SkippedResult) String() string {
+	return fmt.Sprintf("%s: %s\n", yellowBold("SKIPPED"), result.TestFile)
+}
+
+// FailedResult is a type for a test result that failed.
+type FailedResult struct {
+	TestResult
+	ExitCode int `json:"exitcode"`
+}
+
+func (result FailedResult) String() string {
+	return fmt.Sprintf("%s: %s\n", redBold("FAILED"), result.TestFile)
 }

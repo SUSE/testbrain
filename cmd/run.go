@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -18,7 +19,7 @@ var runCmd = &cobra.Command{
 and summarizing it. If no files are given, the current
 working directory is assumed.  Any directories will be
 walked recursively.`,
-	RunE: runCommandWithViperArgs,
+	Run: runCommandWithViperArgs,
 }
 
 func init() {
@@ -35,7 +36,7 @@ func init() {
 	viper.BindPFlags(runCmd.PersistentFlags())
 }
 
-func runCommandWithViperArgs(_ *cobra.Command, testTargets []string) error {
+func runCommandWithViperArgs(_ *cobra.Command, testTargets []string) {
 	timeoutInSeconds := viper.GetInt("timeout")
 	flagTimeout := time.Duration(timeoutInSeconds) * time.Second
 	flagJSONOutput := viper.GetBool("json")
@@ -47,7 +48,8 @@ func runCommandWithViperArgs(_ *cobra.Command, testTargets []string) error {
 	flagDryRun := viper.GetBool("dry-run")
 
 	if flagInOrder && flagSeed != -1 {
-		return errors.New("Cannot set --in-order and --seed at the same time")
+		fmt.Fprintf(os.Stderr, "Error: %v\n", errors.New("Cannot set --in-order and --seed at the same time"))
+		os.Exit(1)
 	}
 	if flagSeed == -1 {
 		flagSeed = time.Now().UnixNano()
@@ -57,7 +59,8 @@ func runCommandWithViperArgs(_ *cobra.Command, testTargets []string) error {
 		// No testTargets given, current working directory is assumed.
 		cwd, err := os.Getwd()
 		if err != nil {
-			return err
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
 		}
 		testTargets = []string{cwd}
 	}
@@ -78,5 +81,7 @@ func runCommandWithViperArgs(_ *cobra.Command, testTargets []string) error {
 		os.Stderr,
 		options,
 	)
-	return runner.RunCommand()
+	if err := runner.RunCommand(); err != nil {
+		os.Exit(1)
+	}
 }
