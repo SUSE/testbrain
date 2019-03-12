@@ -2,6 +2,7 @@ package lib
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"path/filepath"
@@ -532,6 +533,7 @@ func TestOutputResultsJSON(t *testing.T) {
 
 func TestRunCommand(t *testing.T) {
 	testFolder, _ := filepath.Abs("../testdata/mixed")
+	seed := int64(1552072438299530183)
 
 	tests := []struct {
 		title          string
@@ -543,6 +545,7 @@ func TestRunCommand(t *testing.T) {
 			title:   "Verbose",
 			verbose: true,
 			expectedStdout: "Found 3 test files\n" +
+				fmt.Sprintf("Using seed: %d\n", seed) +
 				"Running test fail_test.sh (1/3)\n" +
 				"Goodbye World!\n" +
 				"FAILED: fail_test.sh\n\n" +
@@ -563,6 +566,7 @@ func TestRunCommand(t *testing.T) {
 			title:   "Non-verbose",
 			verbose: false,
 			expectedStdout: "Found 3 test files\n" +
+				fmt.Sprintf("Using seed: %d\n", seed) +
 				"Running test fail_test.sh (1/3)\n" +
 				"FAILED: fail_test.sh\n\n" +
 				"Test output:\n" +
@@ -585,7 +589,7 @@ func TestRunCommand(t *testing.T) {
 			var stdout concurrentBuffer
 			var stderr concurrentBuffer
 			r := setupDefaultRunner(&stdout, &stderr)
-			r.options.RandomSeed = 1552072438299530183
+			r.options.RandomSeed = seed
 			r.options.Verbose = tt.verbose
 			r.options.TestTargets = []string{testFolder}
 			err := r.RunCommand()
